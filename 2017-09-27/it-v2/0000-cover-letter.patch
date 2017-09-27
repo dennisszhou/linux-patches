@@ -1,0 +1,46 @@
+From b3b7a1625bf1ebd7239da72ded077e1afd6aaa20 Mon Sep 17 00:00:00 2001
+From: Dennis Zhou <dennisszhou@gmail.com>
+Date: Wed, 27 Sep 2017 15:02:05 -0500
+Subject: [PATCH 0/2] percpu: fix block iterators and reserved chunk stats
+
+Hi everyone,
+
+This patchset includes two bug fixes related to bitmap percpu memory
+allocator.
+
+The first is a problem with how the start offset is managed in bytes, but
+the bitmaps are traversed in bits. The start offset is maintained to keep
+alignment true within the actual allocation area in the chunk. With the
+reserved and dynamic chunk, this may unintentionally skip over a portion
+proportional to the start offset and PCPU_MIN_ALLOC_SIZE.
+
+The second is an issue reported by Luis in [1]. The allocator was unable
+to allocate from the reserved chunk due to the block offset not being
+reset within the iterator. This caused subsequently checked  blocks to
+check against a potentially higher block offset. This may lead the
+iterator to believe it had checked this area in the prior iteration. The
+fix is to simply reset the block offset to 0 after it is used allowing
+the predicate to always evaluate to true for subsequent blocks.
+
+[1] https://lkml.org/lkml/2017/9/26/506
+
+This patchset contains the following 2 patches:
+  0001-percpu-fix-starting-offset-for-chunk-statistics-trav.patch
+  0002-percpu-fix-iteration-to-prevent-skipping-over-block.patch
+
+0001 fixes the chunk start offset issue. 0002 fixes the iteration bug.
+
+This patchset is on top of linus#v4.14-rc2 e19b205be4.
+
+diffstats below:
+
+Dennis Zhou (2):
+  percpu: fix starting offset for chunk statistics traversal
+  percpu: fix iteration to prevent skipping over block
+
+ mm/percpu-stats.c | 2 +-
+ mm/percpu.c       | 4 ++++
+ 2 files changed, 5 insertions(+), 1 deletion(-)
+
+Thanks,
+Dennis

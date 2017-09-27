@@ -1,0 +1,33 @@
+From b42b87f71e17ee6112198316674bcf23831ccd1f Mon Sep 17 00:00:00 2001
+From: Dennis Zhou <dennisszhou@gmail.com>
+Date: Wed, 27 Sep 2017 12:02:19 -0500
+Subject: [PATCH 1/2] percpu: fix starting offset for chunk statistics
+ traversal
+
+This patch fixes the starting offset used when scanning chunks to
+compute the chunk statistics. The value start_offset (and end_offset)
+are managed in bytes while the traversal occurs over bits. Thus for the
+reserved and dynamic chunk, it may incorrectly skip over the initial
+allocations.
+
+Signed-off-by: Dennis Zhou <dennisszhou@gmail.com>
+---
+ mm/percpu-stats.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/mm/percpu-stats.c b/mm/percpu-stats.c
+index 6142484..7a58460 100644
+--- a/mm/percpu-stats.c
++++ b/mm/percpu-stats.c
+@@ -73,7 +73,7 @@ static void chunk_map_stats(struct seq_file *m, struct pcpu_chunk *chunk,
+ 		     last_alloc + 1 : 0;
+ 
+ 	as_len = 0;
+-	start = chunk->start_offset;
++	start = chunk->start_offset / PCPU_MIN_ALLOC_SIZE;
+ 
+ 	/*
+ 	 * If a bit is set in the allocation map, the bound_map identifies
+-- 
+1.8.3.1
+
