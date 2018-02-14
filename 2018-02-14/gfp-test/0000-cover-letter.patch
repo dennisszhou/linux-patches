@@ -1,0 +1,19 @@
+From aec887a138dbc2f37c5db32ad6a0278422497cb1 Mon Sep 17 00:00:00 2001
+Message-Id: <cover.1518586008.git.dennisszhou@gmail.com>
+From: Dennis Zhou <dennisszhou@gmail.com>
+Date: Tue, 13 Feb 2018 23:26:48 -0600
+Subject: [PATCH] *** SUBJECT HERE ***
+
+*** BLURB HERE ***
+
+Dennis Zhou (1):
+  percpu: add __GFP_NORETRY semantics to the percpu balancing path
+
+ mm/percpu-km.c |  8 ++++----
+ mm/percpu-vm.c | 18 +++++++++++-------
+ mm/percpu.c    | 45 ++++++++++++++++++++++++++++-----------------
+ 3 files changed, 43 insertions(+), 28 deletions(-)
+
+-- 
+1.8.3.1
+
