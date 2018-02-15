@@ -27,9 +27,9 @@ additional flags cause an underlying allocator to trigger out of memory.
 I tested this by running basic allocations with and without passing
 the additional flags. Allocations are able to proceed / fail as
 expected without triggering the out of memory kernel panic. I still
-saw OOM killer activate, but I attribute that to other programs page
-faulting in the background. Without the flags, the kernel panics pretty
-quickly with the expected out of memory panic.
+saw OOM killer activate, but I attribute that to other programs faulting
+in the background. Without the flags, the kernel panics pretty quickly
+with the expected out of memory panic.
 
 [1] https://lkml.org/lkml/2018/2/12/551
 
