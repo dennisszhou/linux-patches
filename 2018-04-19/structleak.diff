@@ -1,0 +1,13 @@
+diff --git a/scripts/gcc-plugins/structleak_plugin.c b/scripts/gcc-plugins/structleak_plugin.c
+index 10292f7..0061040 100644
+--- a/scripts/gcc-plugins/structleak_plugin.c
++++ b/scripts/gcc-plugins/structleak_plugin.c
+@@ -211,7 +211,7 @@ __visible int plugin_init(struct plugin_name_args *plugin_info, struct plugin_gc
+ 	const struct plugin_argument * const argv = plugin_info->argv;
+ 	bool enable = true;
+ 
+-	PASS_INFO(structleak, "early_optimizations", 1, PASS_POS_INSERT_BEFORE);
++	PASS_INFO(structleak, "*all_optimizations", 1, PASS_POS_INSERT_BEFORE);
+ 
+ 	if (!plugin_default_version_check(version, &gcc_version)) {
+ 		error(G_("incompatible gcc/plugin versions"));
