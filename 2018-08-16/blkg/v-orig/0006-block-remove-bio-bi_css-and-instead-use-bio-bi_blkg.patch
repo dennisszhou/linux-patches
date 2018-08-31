@@ -1,0 +1,276 @@
+From 62aabbe3611c8e4e08b3a8071d6290bea4b7c598 Mon Sep 17 00:00:00 2001
+From: Dennis Zhou <dennisszhou@gmail.com>
+Date: Wed, 15 Aug 2018 13:44:26 -0700
+Subject: [PATCH 6/9] block: remove bio->bi_css and instead use bio->bi_blkg
+
+It is possible for IOs to now leak to the parent blkg. As all bios are
+now associated with some blkg, the reference to bio->bi_css is
+unnecessary as a blkg maintains one to the blkcg.
+
+This patch removes the use of bi_css and transfers uses to accessing via
+bi_blkg.
+
+Signed-off-by: Dennis Zhou <dennisszhou@gmail.com>
+---
+ block/bio.c                | 51 ++++++--------------------------------
+ block/bounce.c             |  2 +-
+ drivers/block/loop.c       |  5 ++--
+ drivers/md/raid0.c         |  2 +-
+ include/linux/bio.h        |  7 ++----
+ include/linux/blk-cgroup.h |  4 +--
+ include/linux/blk_types.h  |  1 -
+ include/linux/writeback.h  |  4 +--
+ kernel/trace/blktrace.c    |  4 +--
+ 9 files changed, 20 insertions(+), 60 deletions(-)
+
+diff --git a/block/bio.c b/block/bio.c
+index 9ee2b83392fa..099fdd45fde6 100644
+--- a/block/bio.c
++++ b/block/bio.c
+@@ -609,7 +609,7 @@ void __bio_clone_fast(struct bio *bio, struct bio *bio_src)
+ 	bio->bi_iter = bio_src->bi_iter;
+ 	bio->bi_io_vec = bio_src->bi_io_vec;
+ 
+-	bio_clone_blkcg_association(bio, bio_src);
++	bio_clone_blkg_association(bio, bio_src);
+ 
+ 	bio_issue_init(&bio->bi_issue, bio_sectors(bio));
+ }
+@@ -1981,34 +1981,6 @@ static struct blkcg_gq *bio_lookup_blkg(struct blkcg *blkcg,
+ 	return blkg;
+ }
+ 
+-/**
+- * bio_associate_blkcg - associate a bio with the specified blkcg
+- * @bio: target bio
+- * @blkcg_css: css of the blkcg to associate
+- *
+- * Associate @bio with the blkcg specified by @blkcg_css.  Block layer will
+- * treat @bio as if it were issued by a task which belongs to the blkcg.
+- *
+- * This function takes an extra reference of @blkcg_css which will be put
+- * when @bio is released.  The caller must own @bio and is responsible for
+- * synchronizing calls to this function.  If @blkcg_css is NULL, a call to
+- * bio_get_css finds the current css from the kthread or task.
+- */
+-int bio_associate_blkcg(struct bio *bio, struct cgroup_subsys_state *blkcg_css)
+-{
+-	if (unlikely(bio->bi_css))
+-		return -EBUSY;
+-
+-	if (blkcg_css)
+-		css_get(blkcg_css);
+-	else
+-		blkcg_css = bio_get_css();
+-
+-	bio->bi_css = blkcg_css;
+-	return 0;
+-}
+-EXPORT_SYMBOL_GPL(bio_associate_blkcg);
+-
+ /**
+  * bio_associate_blkg - associate a bio with the specified blkg
+  * @bio: target bio
+@@ -2074,13 +2046,12 @@ int bio_associate_blkg_from_page(struct bio *bio, struct page *page)
+ {
+ 	struct cgroup_subsys_state *blkcg_css;
+ 
+-	if (unlikely(bio->bi_css))
++	if (unlikely(bio->bi_blkg))
+ 		return -EBUSY;
+ 	if (!page->mem_cgroup)
+ 		return 0;
+ 	blkcg_css = cgroup_get_e_css(page->mem_cgroup->css.cgroup,
+ 				     &io_cgrp_subsys);
+-	bio->bi_css = blkcg_css;
+ 
+ 	return __bio_associate_blkg_from_css(bio, blkcg_css);
+ }
+@@ -2106,8 +2077,7 @@ int bio_associate_create_blkg(struct request_queue *q, struct bio *bio)
+ 
+ 	rcu_read_lock();
+ 
+-	bio_associate_blkcg(bio, NULL);
+-	blkcg = bio_blkcg(bio);
++	blkcg = css_to_blkcg(bio_get_css());
+ 
+ 	if (!blkcg->css.parent) {
+ 		ret = bio_associate_blkg(bio, q->root_blkg);
+@@ -2132,30 +2102,25 @@ void bio_disassociate_task(struct bio *bio)
+ 		put_io_context(bio->bi_ioc);
+ 		bio->bi_ioc = NULL;
+ 	}
+-	if (bio->bi_css) {
+-		css_put(bio->bi_css);
+-		bio->bi_css = NULL;
+-	}
+ 	if (bio->bi_blkg) {
++		/* a ref is always taken on css */
++		css_put(&bio_blkcg(bio)->css);
+ 		blkg_put(bio->bi_blkg);
+ 		bio->bi_blkg = NULL;
+ 	}
+ }
+ 
+ /**
+- * bio_clone_blkcg_association - clone blkcg association from src to dst bio
++ * bio_clone_blkg_association - clone blkg association from src to dst bio
+  * @dst: destination bio
+  * @src: source bio
+  */
+-void bio_clone_blkcg_association(struct bio *dst, struct bio *src)
++void bio_clone_blkg_association(struct bio *dst, struct bio *src)
+ {
+-	if (src->bi_css)
+-		WARN_ON(bio_associate_blkcg(dst, src->bi_css));
+-
+ 	if (src->bi_blkg)
+ 		bio_associate_blkg(dst, src->bi_blkg);
+ }
+-EXPORT_SYMBOL_GPL(bio_clone_blkcg_association);
++EXPORT_SYMBOL_GPL(bio_clone_blkg_association);
+ #endif /* CONFIG_BLK_CGROUP */
+ 
+ static void __init biovec_init_slabs(void)
+diff --git a/block/bounce.c b/block/bounce.c
+index bea3b0cbe4a7..9f7071e176a4 100644
+--- a/block/bounce.c
++++ b/block/bounce.c
+@@ -257,7 +257,7 @@ static struct bio *bounce_clone_bio(struct bio *bio_src, gfp_t gfp_mask,
+ 		}
+ 	}
+ 
+-	bio_clone_blkcg_association(bio, bio_src);
++	bio_clone_blkg_association(bio, bio_src);
+ 
+ 	bio_issue_init(&bio->bi_issue, bio_sectors(bio));
+ 
+diff --git a/drivers/block/loop.c b/drivers/block/loop.c
+index ea9debf59b22..abad6d15f956 100644
+--- a/drivers/block/loop.c
++++ b/drivers/block/loop.c
+@@ -77,6 +77,7 @@
+ #include <linux/falloc.h>
+ #include <linux/uio.h>
+ #include <linux/ioprio.h>
++#include <linux/blk-cgroup.h>
+ 
+ #include "loop.h"
+ 
+@@ -1760,8 +1761,8 @@ static blk_status_t loop_queue_rq(struct blk_mq_hw_ctx *hctx,
+ 
+ 	/* always use the first bio's css */
+ #ifdef CONFIG_BLK_CGROUP
+-	if (cmd->use_aio && rq->bio && rq->bio->bi_css) {
+-		cmd->css = rq->bio->bi_css;
++	if (cmd->use_aio && rq->bio && rq->bio->bi_blkg) {
++		cmd->css = &bio_blkcg(rq->bio)->css;
+ 		css_get(cmd->css);
+ 	} else
+ #endif
+diff --git a/drivers/md/raid0.c b/drivers/md/raid0.c
+index ac1cffd2a09b..f3fb5bb8c82a 100644
+--- a/drivers/md/raid0.c
++++ b/drivers/md/raid0.c
+@@ -542,7 +542,7 @@ static void raid0_handle_discard(struct mddev *mddev, struct bio *bio)
+ 		    !discard_bio)
+ 			continue;
+ 		bio_chain(discard_bio, bio);
+-		bio_clone_blkcg_association(discard_bio, bio);
++		bio_clone_blkg_association(discard_bio, bio);
+ 		if (mddev->gendisk)
+ 			trace_block_bio_remap(bdev_get_queue(rdev->bdev),
+ 				discard_bio, disk_devt(mddev->gendisk),
+diff --git a/include/linux/bio.h b/include/linux/bio.h
+index 81530d11d34d..175e5e349d30 100644
+--- a/include/linux/bio.h
++++ b/include/linux/bio.h
+@@ -554,16 +554,13 @@ static inline int bio_associate_blkg_from_page(struct bio *bio,
+ #endif
+ 
+ #ifdef CONFIG_BLK_CGROUP
+-int bio_associate_blkcg(struct bio *bio, struct cgroup_subsys_state *blkcg_css);
+ int bio_associate_blkg(struct bio *bio, struct blkcg_gq *blkg);
+ int bio_associate_blkg_from_css(struct bio *bio,
+ 				struct cgroup_subsys_state *css);
+ int bio_associate_create_blkg(struct request_queue *q, struct bio *bio);
+ void bio_disassociate_task(struct bio *bio);
+-void bio_clone_blkcg_association(struct bio *dst, struct bio *src);
++void bio_clone_blkg_association(struct bio *dst, struct bio *src);
+ #else	/* CONFIG_BLK_CGROUP */
+-static inline int bio_associate_blkcg(struct bio *bio,
+-			struct cgroup_subsys_state *blkcg_css) { return 0; }
+ static inline int bio_associate_blkg(struct bio *bio,
+ 				     struct blkcg_gq *blkg) { return 0; }
+ static inline int bio_associate_blkg_from_css(struct bio *bio,
+@@ -572,7 +569,7 @@ static inline int bio_associate_blkg_from_css(struct bio *bio,
+ static inline int bio_associate_create_blkg(struct request_queue *q,
+ 					    struct bio *bio) { return 0; }
+ static inline void bio_disassociate_task(struct bio *bio) { }
+-static inline void bio_clone_blkcg_association(struct bio *dst,
++static inline void bio_clone_blkg_association(struct bio *dst,
+ 			struct bio *src) { }
+ #endif	/* CONFIG_BLK_CGROUP */
+ 
+diff --git a/include/linux/blk-cgroup.h b/include/linux/blk-cgroup.h
+index 01528266c82a..00f8eb93ca14 100644
+--- a/include/linux/blk-cgroup.h
++++ b/include/linux/blk-cgroup.h
+@@ -244,8 +244,8 @@ static inline struct blkcg *css_to_blkcg(struct cgroup_subsys_state *css)
+  */
+ static inline struct blkcg *bio_blkcg(struct bio *bio)
+ {
+-	if (bio && bio->bi_css)
+-		return css_to_blkcg(bio->bi_css);
++	if (bio && bio->bi_blkg)
++		return bio->bi_blkg->blkcg;
+ 	/*
+ 	 * This shouldn't happen.  This should only be called after having
+ 	 * explicitly done association somewhere along the way.
+diff --git a/include/linux/blk_types.h b/include/linux/blk_types.h
+index f6dfb30737d8..9578c7ab1eb6 100644
+--- a/include/linux/blk_types.h
++++ b/include/linux/blk_types.h
+@@ -178,7 +178,6 @@ struct bio {
+ 	 * release.  Read comment on top of bio_associate_current().
+ 	 */
+ 	struct io_context	*bi_ioc;
+-	struct cgroup_subsys_state *bi_css;
+ 	struct blkcg_gq		*bi_blkg;
+ 	struct bio_issue	bi_issue;
+ #endif
+diff --git a/include/linux/writeback.h b/include/linux/writeback.h
+index 0d0395dae346..6f1ea3e742ad 100644
+--- a/include/linux/writeback.h
++++ b/include/linux/writeback.h
+@@ -257,10 +257,8 @@ static inline void wbc_init_bio(struct writeback_control *wbc, struct bio *bio)
+ 	 * behind a slow cgroup.  Ultimately, we want pageout() to kick off
+ 	 * regular writeback instead of writing things out itself.
+ 	 */
+-	if (wbc->wb) {
+-		bio_associate_blkcg(bio, wbc->wb->blkcg_css);
++	if (wbc->wb)
+ 		bio_associate_blkg_from_css(bio, wbc->wb->blkcg_css);
+-	}
+ }
+ 
+ #else	/* CONFIG_CGROUP_WRITEBACK */
+diff --git a/kernel/trace/blktrace.c b/kernel/trace/blktrace.c
+index b951aa1fac61..cd90f653c804 100644
+--- a/kernel/trace/blktrace.c
++++ b/kernel/trace/blktrace.c
+@@ -776,9 +776,9 @@ blk_trace_bio_get_cgid(struct request_queue *q, struct bio *bio)
+ 	if (!bt || !(blk_tracer_flags.val & TRACE_BLK_OPT_CGROUP))
+ 		return NULL;
+ 
+-	if (!bio->bi_css)
++	if (!bio->bi_blkg)
+ 		return NULL;
+-	return cgroup_get_kernfs_id(bio->bi_css->cgroup);
++	return cgroup_get_kernfs_id(bio_blkcg(bio)->css.cgroup);
+ }
+ #else
+ static union kernfs_node_id *
+-- 
+2.17.1
+

@@ -1,0 +1,119 @@
+From 9dcfc03f0e23e3543ada23a8658def35746f396c Mon Sep 17 00:00:00 2001
+From: Dennis Zhou <dennisszhou@gmail.com>
+Date: Wed, 15 Aug 2018 11:20:04 -0700
+Subject: [PATCH 2/8] block: consolidate bio_issue_init and blkg assocation
+
+This removes the now duplicate association logic in blk-throttle and
+blk-iolatency. bio_issue_init is moved into blkcg_bio_issue_check to
+allow for the future addition of a latency moving average for IOs.
+
+Signed-off-by: Dennis Zhou <dennisszhou@gmail.com>
+---
+ block/bio.c                |  2 ++
+ block/blk-iolatency.c      | 22 ----------------------
+ block/blk-throttle.c       | 12 +-----------
+ include/linux/blk-cgroup.h |  2 ++
+ 4 files changed, 5 insertions(+), 33 deletions(-)
+
+diff --git a/block/bio.c b/block/bio.c
+index cb85cb506882..b07dc06d3872 100644
+--- a/block/bio.c
++++ b/block/bio.c
+@@ -610,6 +610,8 @@ void __bio_clone_fast(struct bio *bio, struct bio *bio_src)
+ 	bio->bi_io_vec = bio_src->bi_io_vec;
+ 
+ 	bio_clone_blkcg_association(bio, bio_src);
++
++	bio_issue_init(&bio->bi_issue, bio_sectors(bio));
+ }
+ EXPORT_SYMBOL(__bio_clone_fast);
+ 
+diff --git a/block/blk-iolatency.c b/block/blk-iolatency.c
+index 19923f8a029d..9b83e83d4fa0 100644
+--- a/block/blk-iolatency.c
++++ b/block/blk-iolatency.c
+@@ -395,34 +395,12 @@ static void blkcg_iolatency_throttle(struct rq_qos *rqos, struct bio *bio,
+ 				     spinlock_t *lock)
+ {
+ 	struct blk_iolatency *blkiolat = BLKIOLATENCY(rqos);
+-	struct blkcg *blkcg;
+ 	struct blkcg_gq *blkg;
+-	struct request_queue *q = rqos->q;
+ 	bool issue_as_root = bio_issue_as_root_blkg(bio);
+ 
+ 	if (!blk_iolatency_enabled(blkiolat))
+ 		return;
+ 
+-	rcu_read_lock();
+-	blkcg = bio_blkcg(bio);
+-	bio_associate_blkcg(bio, &blkcg->css);
+-	blkg = blkg_lookup(blkcg, q);
+-	if (unlikely(!blkg)) {
+-		if (!lock)
+-			spin_lock_irq(q->queue_lock);
+-		blkg = blkg_lookup_create(blkcg, q);
+-		if (IS_ERR(blkg))
+-			blkg = NULL;
+-		if (!lock)
+-			spin_unlock_irq(q->queue_lock);
+-	}
+-	if (!blkg)
+-		goto out;
+-
+-	bio_issue_init(&bio->bi_issue, bio_sectors(bio));
+-	bio_associate_blkg(bio, blkg);
+-out:
+-	rcu_read_unlock();
+ 	while (blkg && blkg->parent) {
+ 		struct iolatency_grp *iolat = blkg_to_lat(blkg);
+ 		if (!iolat) {
+diff --git a/block/blk-throttle.c b/block/blk-throttle.c
+index a3eede00d302..f2b355338894 100644
+--- a/block/blk-throttle.c
++++ b/block/blk-throttle.c
+@@ -2126,20 +2126,11 @@ static inline void throtl_update_latency_buckets(struct throtl_data *td)
+ }
+ #endif
+ 
+-static void blk_throtl_assoc_bio(struct throtl_grp *tg, struct bio *bio)
+-{
+-#ifdef CONFIG_BLK_DEV_THROTTLING_LOW
+-	if (bio->bi_css)
+-		bio_associate_blkg(bio, tg_to_blkg(tg));
+-	bio_issue_init(&bio->bi_issue, bio_sectors(bio));
+-#endif
+-}
+-
+ bool blk_throtl_bio(struct request_queue *q, struct blkcg_gq *blkg,
+ 		    struct bio *bio)
+ {
+ 	struct throtl_qnode *qn = NULL;
+-	struct throtl_grp *tg = blkg_to_tg(blkg ?: q->root_blkg);
++	struct throtl_grp *tg = blkg_to_tg(blkg);
+ 	struct throtl_service_queue *sq;
+ 	bool rw = bio_data_dir(bio);
+ 	bool throttled = false;
+@@ -2158,7 +2149,6 @@ bool blk_throtl_bio(struct request_queue *q, struct blkcg_gq *blkg,
+ 	if (unlikely(blk_queue_bypass(q)))
+ 		goto out_unlock;
+ 
+-	blk_throtl_assoc_bio(tg, bio);
+ 	blk_throtl_update_idletime(tg);
+ 
+ 	sq = &tg->service_queue;
+diff --git a/include/linux/blk-cgroup.h b/include/linux/blk-cgroup.h
+index d72ef9e075c2..ff259219d935 100644
+--- a/include/linux/blk-cgroup.h
++++ b/include/linux/blk-cgroup.h
+@@ -778,6 +778,8 @@ static inline bool blkcg_bio_issue_check(struct request_queue *q,
+ 		blkg_rwstat_add(&blkg->stat_ios, bio->bi_opf, 1);
+ 	}
+ 
++	bio_issue_init(&bio->bi_issue, bio_sectors(bio));
++
+ 	return !throtl;
+ }
+ 
+-- 
+2.17.1
+

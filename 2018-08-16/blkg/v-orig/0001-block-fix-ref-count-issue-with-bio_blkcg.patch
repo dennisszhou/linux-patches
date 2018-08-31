@@ -1,0 +1,147 @@
+From 90be7a468e83a696d4bf8cad846ff857c0fd8e74 Mon Sep 17 00:00:00 2001
+From: Dennis Zhou <dennisszhou@gmail.com>
+Date: Fri, 17 Aug 2018 12:46:30 -0700
+Subject: [PATCH 1/9] block: fix ref count issue with bio_blkcg
+
+The accessor function bio_blkcg either returns the blkcg associated with
+the bio or finds one in the current context. This can cause an issue
+when trying to associate a bio with a blkcg. Particularly, it's the
+third case that is problematic:
+
+	return css_to_blkcg(task_css(current, io_cgrp_id));
+
+As the above may race against task migration or cgroup exiting, it is
+not always ok to take a reference on the blkcg returned from bio_blkcg.
+
+This patch adds association ahead of calling bio_blkcg rather than
+after. This prevents makes association a required and explicit step
+along the code paths for calling bio_blkcg.
+
+Signed-off-by: Dennis Zhou <dennisszhou@gmail.com>
+---
+ block/bio.c                | 36 ++++++++++++++++++++++++++++++++++--
+ block/blk-iolatency.c      |  2 +-
+ include/linux/blk-cgroup.h | 22 +++++++++++++---------
+ 3 files changed, 48 insertions(+), 12 deletions(-)
+
+diff --git a/block/bio.c b/block/bio.c
+index 04969b392c72..14d601a32732 100644
+--- a/block/bio.c
++++ b/block/bio.c
+@@ -1928,6 +1928,32 @@ EXPORT_SYMBOL(bioset_init_from_src);
+ 
+ #ifdef CONFIG_BLK_CGROUP
+ 
++/**
++ * bio_get_css - find and get a reference to the css
++ *
++ * Find the css associated with either the kthread or the current task.
++ */
++static inline struct cgroup_subsys_state *bio_get_css(void)
++{
++	struct cgroup_subsys_state *css;
++
++	css = kthread_blkcg();
++	if (css) {
++		css_get(css);
++	} else {
++		rcu_read_lock();
++		while (true) {
++			css = task_css(current, io_cgrp_id);
++			if (likely(css_tryget(css)))
++				break;
++			cpu_relax();
++		}
++		rcu_read_unlock();
++	}
++
++	return css;
++}
++
+ #ifdef CONFIG_MEMCG
+ /**
+  * bio_associate_blkcg_from_page - associate a bio with the page's blkcg
+@@ -1962,13 +1988,19 @@ int bio_associate_blkcg_from_page(struct bio *bio, struct page *page)
+  *
+  * This function takes an extra reference of @blkcg_css which will be put
+  * when @bio is released.  The caller must own @bio and is responsible for
+- * synchronizing calls to this function.
++ * synchronizing calls to this function.  If @blkcg_css is NULL, a call to
++ * bio_get_css finds the current css from the kthread or task.
+  */
+ int bio_associate_blkcg(struct bio *bio, struct cgroup_subsys_state *blkcg_css)
+ {
+ 	if (unlikely(bio->bi_css))
+ 		return -EBUSY;
+-	css_get(blkcg_css);
++
++	if (blkcg_css)
++		css_get(blkcg_css);
++	else
++		blkcg_css = bio_get_css();
++
+ 	bio->bi_css = blkcg_css;
+ 	return 0;
+ }
+diff --git a/block/blk-iolatency.c b/block/blk-iolatency.c
+index 19923f8a029d..62fdd9002c29 100644
+--- a/block/blk-iolatency.c
++++ b/block/blk-iolatency.c
+@@ -404,8 +404,8 @@ static void blkcg_iolatency_throttle(struct rq_qos *rqos, struct bio *bio,
+ 		return;
+ 
+ 	rcu_read_lock();
++	bio_associate_blkcg(bio, NULL);
+ 	blkcg = bio_blkcg(bio);
+-	bio_associate_blkcg(bio, &blkcg->css);
+ 	blkg = blkg_lookup(blkcg, q);
+ 	if (unlikely(!blkg)) {
+ 		if (!lock)
+diff --git a/include/linux/blk-cgroup.h b/include/linux/blk-cgroup.h
+index 34aec30e06c7..ef916fc347fb 100644
+--- a/include/linux/blk-cgroup.h
++++ b/include/linux/blk-cgroup.h
+@@ -236,16 +236,21 @@ static inline struct blkcg *css_to_blkcg(struct cgroup_subsys_state *css)
+ 	return css ? container_of(css, struct blkcg, css) : NULL;
+ }
+ 
++/**
++ * bio_blkcg - grab the blkcg associated with a bio
++ * @bio: target bio
++ *
++ * This returns the blkcg associated with a bio.
++ */
+ static inline struct blkcg *bio_blkcg(struct bio *bio)
+ {
+-	struct cgroup_subsys_state *css;
+-
+ 	if (bio && bio->bi_css)
+ 		return css_to_blkcg(bio->bi_css);
+-	css = kthread_blkcg();
+-	if (css)
+-		return css_to_blkcg(css);
+-	return css_to_blkcg(task_css(current, io_cgrp_id));
++	/*
++	 * This shouldn't happen.  This should only be called after having
++	 * explicitly done association somewhere along the way.
++	 */
++	return NULL;
+ }
+ 
+ static inline bool blk_cgroup_congested(void)
+@@ -762,10 +767,9 @@ static inline bool blkcg_bio_issue_check(struct request_queue *q,
+ 	bool throtl = false;
+ 
+ 	rcu_read_lock();
+-	blkcg = bio_blkcg(bio);
+ 
+-	/* associate blkcg if bio hasn't attached one */
+-	bio_associate_blkcg(bio, &blkcg->css);
++	bio_associate_blkcg(bio, NULL);
++	blkcg = bio_blkcg(bio);
+ 
+ 	blkg = blkg_lookup(blkcg, q);
+ 	if (unlikely(!blkg)) {
+-- 
+2.17.1
+

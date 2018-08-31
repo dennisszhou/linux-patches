@@ -1,0 +1,39 @@
+From 8825ad57fcd24c6e0f0381f5eaafeee5953bee00 Mon Sep 17 00:00:00 2001
+From: Dennis Zhou <dennisszhou@gmail.com>
+Date: Mon, 20 Aug 2018 21:36:44 -0700
+Subject: [PATCH 0/9] *** SUBJECT HERE ***
+
+*** BLURB HERE ***
+
+Dennis Zhou (9):
+  block: fix ref count issue with bio_blkcg
+  block: always associate a bio with a blkg
+  block: consolidate bio_issue_init and blkg assocation
+  block: associate a blkg for pages being evicted by swap
+  block: associate writeback bios with a blkg
+  block: remove bio->bi_css and instead use bio->bi_blkg
+  block: add latency counter to blk-cgroup
+  block: remove avg_lat from blk-iolatency
+  block: switch over to using blkg's rq_stat
+
+ Documentation/admin-guide/cgroup-v2.rst |  20 +--
+ block/bio.c                             | 187 ++++++++++++++++++------
+ block/blk-cgroup.c                      | 114 ++++++++++++++-
+ block/blk-iolatency.c                   | 114 +++------------
+ block/blk-throttle.c                    |  12 +-
+ block/bounce.c                          |   4 +-
+ drivers/block/loop.c                    |   5 +-
+ drivers/md/raid0.c                      |   2 +-
+ fs/buffer.c                             |  10 +-
+ fs/ext4/page-io.c                       |   2 +-
+ include/linux/bio.h                     |  23 ++-
+ include/linux/blk-cgroup.h              |  50 ++++---
+ include/linux/blk_types.h               |   1 -
+ include/linux/writeback.h               |   7 +-
+ kernel/trace/blktrace.c                 |   4 +-
+ mm/page_io.c                            |   2 +-
+ 16 files changed, 346 insertions(+), 211 deletions(-)
+
+-- 
+2.17.1
+

@@ -1,0 +1,151 @@
+From 8825ad57fcd24c6e0f0381f5eaafeee5953bee00 Mon Sep 17 00:00:00 2001
+From: Dennis Zhou <dennisszhou@gmail.com>
+Date: Wed, 15 Aug 2018 20:47:54 -0700
+Subject: [PATCH 9/9] block: switch over to using blkg's rq_stat
+
+Now that all IO latencies are recorded in the corresponding blkg as long
+running counters, blk-iolatency does not need to maintain its own
+latency stats. So, this patch has blk-iolatency reuse the blk_rq_stat of
+the blkg. blk-iolatency can maintain its own period as it is reading
+long running counters and computing its own delta.
+
+Signed-off-by: Dennis Zhou <dennisszhou@gmail.com>
+---
+ block/blk-iolatency.c | 47 +++++++++++++++++--------------------------
+ 1 file changed, 19 insertions(+), 28 deletions(-)
+
+diff --git a/block/blk-iolatency.c b/block/blk-iolatency.c
+index 919755ad6829..96add6e25771 100644
+--- a/block/blk-iolatency.c
++++ b/block/blk-iolatency.c
+@@ -116,7 +116,7 @@ struct child_latency_info {
+ 
+ struct iolatency_grp {
+ 	struct blkg_policy_data pd;
+-	struct blk_rq_stat __percpu *stats;
++	struct blk_rq_stat last_stat;
+ 	struct blk_iolatency *blkiolat;
+ 	struct rq_depth rq_depth;
+ 	struct rq_wait rq_wait;
+@@ -398,7 +398,6 @@ static void iolatency_record_time(struct iolatency_grp *iolat,
+ 				  struct bio_issue *issue, u64 now,
+ 				  bool issue_as_root)
+ {
+-	struct blk_rq_stat *rq_stat;
+ 	u64 start = bio_issue_time(issue);
+ 	u64 req_time;
+ 
+@@ -423,10 +422,6 @@ static void iolatency_record_time(struct iolatency_grp *iolat,
+ 			blkcg_add_delay(lat_to_blkg(iolat), now, sub - req_time);
+ 		return;
+ 	}
+-
+-	rq_stat = get_cpu_ptr(iolat->stats);
+-	blk_rq_stat_add(rq_stat, req_time);
+-	put_cpu_ptr(rq_stat);
+ }
+ 
+ #define BLKIOLATENCY_MIN_ADJUST_TIME (500 * NSEC_PER_MSEC)
+@@ -438,6 +433,8 @@ static void iolatency_check_latencies(struct iolatency_grp *iolat, u64 now)
+ 	struct iolatency_grp *parent;
+ 	struct child_latency_info *lat_info;
+ 	struct blk_rq_stat stat;
++	struct blk_rq_stat *last_stat;
++	u64 nr_samples, mean;
+ 	unsigned long flags;
+ 	int cpu;
+ 
+@@ -445,9 +442,8 @@ static void iolatency_check_latencies(struct iolatency_grp *iolat, u64 now)
+ 	preempt_disable();
+ 	for_each_online_cpu(cpu) {
+ 		struct blk_rq_stat *s;
+-		s = per_cpu_ptr(iolat->stats, cpu);
++		s = per_cpu_ptr(blkg->rq_stat, cpu);
+ 		blk_rq_stat_sum(&stat, s);
+-		blk_rq_stat_init(s);
+ 	}
+ 	preempt_enable();
+ 
+@@ -457,29 +453,37 @@ static void iolatency_check_latencies(struct iolatency_grp *iolat, u64 now)
+ 
+ 	lat_info = &parent->child_lat;
+ 
++	/* stats are long running, so calculate the last window */
++	last_stat = &iolat->last_stat;
++	nr_samples = stat.nr_samples - last_stat->nr_samples;
++	mean = div64_u64(stat.nr_samples * stat.mean -
++			 last_stat->nr_samples * last_stat->mean,
++			 nr_samples);
++	iolat->last_stat = stat;
++
+ 	/* Everything is ok and we don't need to adjust the scale. */
+-	if (stat.mean <= iolat->min_lat_nsec &&
++	if (mean <= iolat->min_lat_nsec &&
+ 	    atomic_read(&lat_info->scale_cookie) == DEFAULT_SCALE_COOKIE)
+ 		return;
+ 
+ 	/* Somebody beat us to the punch, just bail. */
+ 	spin_lock_irqsave(&lat_info->lock, flags);
+ 	lat_info->nr_samples -= iolat->nr_samples;
+-	lat_info->nr_samples += stat.nr_samples;
+-	iolat->nr_samples = stat.nr_samples;
++	lat_info->nr_samples += nr_samples;
++	iolat->nr_samples = nr_samples;
+ 
+ 	if ((lat_info->last_scale_event >= now ||
+ 	    now - lat_info->last_scale_event < BLKIOLATENCY_MIN_ADJUST_TIME) &&
+ 	    lat_info->scale_lat <= iolat->min_lat_nsec)
+ 		goto out;
+ 
+-	if (stat.mean <= iolat->min_lat_nsec &&
+-	    stat.nr_samples >= BLKIOLATENCY_MIN_GOOD_SAMPLES) {
++	if (mean <= iolat->min_lat_nsec &&
++	    nr_samples >= BLKIOLATENCY_MIN_GOOD_SAMPLES) {
+ 		if (lat_info->scale_grp == iolat) {
+ 			lat_info->last_scale_event = now;
+ 			scale_cookie_change(iolat->blkiolat, lat_info, true);
+ 		}
+-	} else if (stat.mean > iolat->min_lat_nsec) {
++	} else if (mean > iolat->min_lat_nsec) {
+ 		lat_info->last_scale_event = now;
+ 		if (!lat_info->scale_grp ||
+ 		    lat_info->scale_lat > iolat->min_lat_nsec) {
+@@ -797,12 +801,7 @@ static struct blkg_policy_data *iolatency_pd_alloc(gfp_t gfp, int node)
+ 	iolat = kzalloc_node(sizeof(*iolat), gfp, node);
+ 	if (!iolat)
+ 		return NULL;
+-	iolat->stats = __alloc_percpu_gfp(sizeof(struct blk_rq_stat),
+-				       __alignof__(struct blk_rq_stat), gfp);
+-	if (!iolat->stats) {
+-		kfree(iolat);
+-		return NULL;
+-	}
++
+ 	return &iolat->pd;
+ }
+ 
+@@ -813,13 +812,6 @@ static void iolatency_pd_init(struct blkg_policy_data *pd)
+ 	struct rq_qos *rqos = blkcg_rq_qos(blkg->q);
+ 	struct blk_iolatency *blkiolat = BLKIOLATENCY(rqos);
+ 	u64 now = ktime_to_ns(ktime_get());
+-	int cpu;
+-
+-	for_each_possible_cpu(cpu) {
+-		struct blk_rq_stat *stat;
+-		stat = per_cpu_ptr(iolat->stats, cpu);
+-		blk_rq_stat_init(stat);
+-	}
+ 
+ 	rq_wait_init(&iolat->rq_wait);
+ 	spin_lock_init(&iolat->child_lat.lock);
+@@ -857,7 +849,6 @@ static void iolatency_pd_offline(struct blkg_policy_data *pd)
+ static void iolatency_pd_free(struct blkg_policy_data *pd)
+ {
+ 	struct iolatency_grp *iolat = pd_to_lat(pd);
+-	free_percpu(iolat->stats);
+ 	kfree(iolat);
+ }
+ 
+-- 
+2.17.1
+
