@@ -1,6 +1,6 @@
-From d04a2b410968d530fe63fe965b71efbb716b3a51 Mon Sep 17 00:00:00 2001
+From 30c13f8823c49152593d4747bec8b2429df75b64 Mon Sep 17 00:00:00 2001
 From: Dennis Zhou <dennis@kernel.org>
-Date: Mon, 3 Dec 2018 14:05:17 -0800
+Date: Tue, 4 Dec 2018 09:48:56 -0800
 Subject: [PATCH v5 00/14] block: always associate blkg and refcount cleanup
 
 Hi everyone,
@@ -83,7 +83,7 @@ This patchset contains the following 14 patches:
   0013-blkcg-change-blkg-reference-counting-to-use-percpu_r.patch
   0014-blkcg-rename-blkg_try_get-to-blkg_tryget.patch
 
-This patchset is on top of linu-block#for-4.21/block
+This patchset is on top of linu-block#for-4.21/block 154989e45fd8.
 
 diffstats below:
 
@@ -92,7 +92,7 @@ Dennis Zhou (14):
   blkcg: update blkg_lookup_create() to do locking
   blkcg: convert blkg_lookup_create() to find closest blkg
   blkcg: introduce common blkg association logic
-  dm: set flush bio device on demand
+  dm: set the static flush bio device on demand
   blkcg: associate blkg when associating a device
   blkcg: consolidate bio_issue_init() to be a part of core
   blkcg: associate a blkg for pages being evicted by swap
@@ -106,13 +106,13 @@ Dennis Zhou (14):
  Documentation/admin-guide/cgroup-v2.rst |   8 +-
  block/bfq-cgroup.c                      |   4 +-
  block/bfq-iosched.c                     |   2 +-
- block/bio.c                             | 155 +++++++++++++++---------
+ block/bio.c                             | 156 +++++++++++++++---------
  block/blk-cgroup.c                      |  95 ++++++++++++---
  block/blk-iolatency.c                   |  24 +---
  block/blk-throttle.c                    |  11 --
  block/bounce.c                          |   3 +-
  drivers/block/loop.c                    |   5 +-
- drivers/md/dm.c                         |  11 +-
+ drivers/md/dm.c                         |  12 +-
  drivers/md/raid0.c                      |   2 +-
  fs/buffer.c                             |  10 +-
  fs/ext4/page-io.c                       |   2 +-
@@ -123,8 +123,8 @@ Dennis Zhou (14):
  include/linux/writeback.h               |   5 +-
  kernel/cgroup/cgroup.c                  |  48 ++++++--
  kernel/trace/blktrace.c                 |   4 +-
- mm/page_io.c                            |   4 +-
- 21 files changed, 360 insertions(+), 191 deletions(-)
+ mm/page_io.c                            |   2 +-
+ 21 files changed, 361 insertions(+), 190 deletions(-)
 
- Thanks,
- Dennis
+Thanks,
+Dennis
