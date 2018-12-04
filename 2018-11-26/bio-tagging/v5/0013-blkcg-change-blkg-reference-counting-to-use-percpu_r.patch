@@ -1,4 +1,4 @@
-From 59f01dc702d407f0f31cb5cc5d01e9770fe233d5 Mon Sep 17 00:00:00 2001
+From ff24133947801896d24649902455979d9b58875a Mon Sep 17 00:00:00 2001
 From: Dennis Zhou <dennis@kernel.org>
 Date: Mon, 27 Aug 2018 18:33:07 -0700
 Subject: [PATCH 13/14] blkcg: change blkg reference counting to use percpu_ref
@@ -95,7 +95,7 @@ index 120f2e2835fb..2ca7611fe274 100644
  
  /**
 diff --git a/include/linux/blk-cgroup.h b/include/linux/blk-cgroup.h
-index 6f3bb5e82a57..fc23bb758566 100644
+index 68cae7961060..05909cf31ed1 100644
 --- a/include/linux/blk-cgroup.h
 +++ b/include/linux/blk-cgroup.h
 @@ -123,7 +123,7 @@ struct blkcg_gq {

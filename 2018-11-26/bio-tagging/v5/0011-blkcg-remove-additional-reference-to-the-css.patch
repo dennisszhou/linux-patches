@@ -1,4 +1,4 @@
-From 23051409a039999efbeef8216eb6b54cc2b32c09 Mon Sep 17 00:00:00 2001
+From 09b8a26998b74e671c076938e2d8dc934574c297 Mon Sep 17 00:00:00 2001
 From: Dennis Zhou <dennis@kernel.org>
 Date: Mon, 27 Aug 2018 13:49:59 -0700
 Subject: [PATCH 11/14] blkcg: remove additional reference to the css
@@ -23,7 +23,7 @@ Acked-by: Tejun Heo <tj@kernel.org>
  4 files changed, 69 insertions(+), 88 deletions(-)
 
 diff --git a/block/bio.c b/block/bio.c
-index 32a070557b5e..129defe184b3 100644
+index 2b6bc7b805ec..ce1e512dca5a 100644
 --- a/block/bio.c
 +++ b/block/bio.c
 @@ -1966,8 +1966,6 @@ EXPORT_SYMBOL(bioset_init_from_src);
@@ -35,7 +35,7 @@ index 32a070557b5e..129defe184b3 100644
  		blkg_put(bio->bi_blkg);
  		bio->bi_blkg = NULL;
  	}
-@@ -1994,33 +1992,31 @@ static void __bio_associate_blkg(struct bio *bio, struct blkcg_gq *blkg)
+@@ -1995,33 +1993,31 @@ static void __bio_associate_blkg(struct bio *bio, struct blkcg_gq *blkg)
  	bio->bi_blkg = blkg_try_get_closest(blkg);
  }
  
@@ -84,7 +84,7 @@ index 32a070557b5e..129defe184b3 100644
  }
  EXPORT_SYMBOL_GPL(bio_associate_blkg_from_css);
  
-@@ -2031,8 +2027,8 @@ EXPORT_SYMBOL_GPL(bio_associate_blkg_from_css);
+@@ -2032,8 +2028,8 @@ EXPORT_SYMBOL_GPL(bio_associate_blkg_from_css);
   * @page: the page to lookup the blkcg from
   *
   * Associate @bio with the blkg from @page's owning memcg and the respective
@@ -95,7 +95,7 @@ index 32a070557b5e..129defe184b3 100644
   */
  void bio_associate_blkg_from_page(struct bio *bio, struct page *page)
  {
-@@ -2041,8 +2037,12 @@ void bio_associate_blkg_from_page(struct bio *bio, struct page *page)
+@@ -2042,8 +2038,12 @@ void bio_associate_blkg_from_page(struct bio *bio, struct page *page)
  	if (!page->mem_cgroup)
  		return;
  
@@ -110,7 +110,7 @@ index 32a070557b5e..129defe184b3 100644
  }
  #endif /* CONFIG_MEMCG */
  
-@@ -2057,24 +2057,16 @@ void bio_associate_blkg_from_page(struct bio *bio, struct page *page)
+@@ -2058,24 +2058,16 @@ void bio_associate_blkg_from_page(struct bio *bio, struct page *page)
   */
  void bio_associate_blkg(struct bio *bio)
  {
@@ -139,7 +139,7 @@ index 32a070557b5e..129defe184b3 100644
  
  	rcu_read_unlock();
  }
-@@ -2096,10 +2088,8 @@ void bio_disassociate_task(struct bio *bio)
+@@ -2097,10 +2089,8 @@ void bio_disassociate_task(struct bio *bio)
   */
  void bio_clone_blkg_association(struct bio *dst, struct bio *src)
  {
@@ -152,7 +152,7 @@ index 32a070557b5e..129defe184b3 100644
  EXPORT_SYMBOL_GPL(bio_clone_blkg_association);
  #endif /* CONFIG_BLK_CGROUP */
 diff --git a/include/linux/blk-cgroup.h b/include/linux/blk-cgroup.h
-index e777de0d45d1..6f3bb5e82a57 100644
+index 3674ff8d8e50..68cae7961060 100644
 --- a/include/linux/blk-cgroup.h
 +++ b/include/linux/blk-cgroup.h
 @@ -246,47 +246,6 @@ static inline struct cgroup_subsys_state *blkcg_css(void)
@@ -177,11 +177,11 @@ index e777de0d45d1..6f3bb5e82a57 100644
 -		css_get(css);
 -	} else {
 -		/*
--		 * This is a bit complicated.  It is possible task_css is seeing
--		 * an old css pointer here.  This is caused by the current
--		 * thread migrating away from this cgroup and this cgroup dying.
--		 * css_tryget() will fail when trying to take a ref on a cgroup
--		 * that's ref count has hit 0.
+-		 * This is a bit complicated.  It is possible task_css() is
+-		 * seeing an old css pointer here.  This is caused by the
+-		 * current thread migrating away from this cgroup and this
+-		 * cgroup dying.  css_tryget() will fail when trying to take a
+-		 * ref on a cgroup that's ref count has hit 0.
 -		 *
 -		 * Therefore, if it does fail, this means current must have
 -		 * been swapped away already and this is waiting for it to

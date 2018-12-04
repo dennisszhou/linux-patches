@@ -1,4 +1,4 @@
-From c5685c6d262260e0d2368c3eaf26c97521437ac9 Mon Sep 17 00:00:00 2001
+From 62a32e71b792c15943e7077eba9ff19d6a3cec83 Mon Sep 17 00:00:00 2001
 From: Dennis Zhou <dennis@kernel.org>
 Date: Tue, 20 Nov 2018 08:20:30 -0800
 Subject: [PATCH 04/14] blkcg: introduce common blkg association logic
@@ -22,7 +22,7 @@ Acked-by: Tejun Heo <tj@kernel.org>
  4 files changed, 62 insertions(+), 21 deletions(-)
 
 diff --git a/block/bio.c b/block/bio.c
-index edc8a73b98d5..c3f9ebe7d734 100644
+index 5c9828524adc..452b8e79b998 100644
 --- a/block/bio.c
 +++ b/block/bio.c
 @@ -2009,7 +2009,21 @@ int bio_associate_blkcg(struct bio *bio, struct cgroup_subsys_state *blkcg_css)

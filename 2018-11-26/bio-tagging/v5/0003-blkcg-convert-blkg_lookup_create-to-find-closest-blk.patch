@@ -1,4 +1,4 @@
-From 864985bcdafc043741912423142e3f6270b1c8d5 Mon Sep 17 00:00:00 2001
+From 7a7f9a375a487b06a31e41323d5c2f318929891d Mon Sep 17 00:00:00 2001
 From: Dennis Zhou <dennis@kernel.org>
 Date: Wed, 5 Sep 2018 14:30:16 -0700
 Subject: [PATCH 03/14] blkcg: convert blkg_lookup_create() to find closest
@@ -26,7 +26,7 @@ Reviewed-by: Josef Bacik <josef@toxicpanda.com>
  5 files changed, 44 insertions(+), 38 deletions(-)
 
 diff --git a/block/bio.c b/block/bio.c
-index 7528c2324319..edc8a73b98d5 100644
+index 346a7f5cb2dd..5c9828524adc 100644
 --- a/block/bio.c
 +++ b/block/bio.c
 @@ -2009,21 +2009,24 @@ int bio_associate_blkcg(struct bio *bio, struct cgroup_subsys_state *blkcg_css)
@@ -155,7 +155,7 @@ index 8f0a104770ee..d648d6720f46 100644
  #endif
  }
 diff --git a/include/linux/blk-cgroup.h b/include/linux/blk-cgroup.h
-index 49f399cfb0b6..9d796a4f8ef0 100644
+index b3b1a8187d23..c08e96e521ed 100644
 --- a/include/linux/blk-cgroup.h
 +++ b/include/linux/blk-cgroup.h
 @@ -545,6 +545,20 @@ static inline struct blkcg_gq *blkg_try_get(struct blkcg_gq *blkg)

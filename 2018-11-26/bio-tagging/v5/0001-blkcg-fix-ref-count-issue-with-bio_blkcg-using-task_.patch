@@ -1,4 +1,4 @@
-From 0cd0525847bb7d0d47d0a643b25d94288b96589e Mon Sep 17 00:00:00 2001
+From 9e79236bc6ab37ff303799f6be5b9e50aed95f02 Mon Sep 17 00:00:00 2001
 From: Dennis Zhou <dennis@kernel.org>
 Date: Fri, 17 Aug 2018 12:46:30 -0700
 Subject: [PATCH 01/14] blkcg: fix ref count issue with bio_blkcg() using
@@ -71,7 +71,7 @@ index 67b22c924aee..3d1f319fe977 100644
  		bfqq = &bfqd->oom_bfqq;
  		goto out;
 diff --git a/block/bio.c b/block/bio.c
-index 03895cc0d74a..7528c2324319 100644
+index 03895cc0d74a..346a7f5cb2dd 100644
 --- a/block/bio.c
 +++ b/block/bio.c
 @@ -1990,13 +1990,19 @@ int bio_associate_blkcg_from_page(struct bio *bio, struct page *page)
@@ -79,7 +79,7 @@ index 03895cc0d74a..7528c2324319 100644
   * This function takes an extra reference of @blkcg_css which will be put
   * when @bio is released.  The caller must own @bio and is responsible for
 - * synchronizing calls to this function.
-+ * synchronizing calls to this function.  If @blkcg_css is NULL, a call to
++ * synchronizing calls to this function.  If @blkcg_css is %NULL, a call to
 + * blkcg_get_css() finds the current css from the kthread or task.
   */
  int bio_associate_blkcg(struct bio *bio, struct cgroup_subsys_state *blkcg_css)
@@ -111,7 +111,7 @@ index 5f7f1773be61..fe0c4ca312ff 100644
  	if (unlikely(!blkg)) {
  		spin_lock_irq(&q->queue_lock);
 diff --git a/include/linux/blk-cgroup.h b/include/linux/blk-cgroup.h
-index a9e2e2037129..db8214047486 100644
+index a9e2e2037129..f619307171a6 100644
 --- a/include/linux/blk-cgroup.h
 +++ b/include/linux/blk-cgroup.h
 @@ -227,22 +227,103 @@ int blkg_conf_prep(struct blkcg *blkcg, const struct blkcg_policy *pol,
@@ -153,11 +153,11 @@ index a9e2e2037129..db8214047486 100644
 +		css_get(css);
 +	} else {
 +		/*
-+		 * This is a bit complicated.  It is possible task_css is seeing
-+		 * an old css pointer here.  This is caused by the current
-+		 * thread migrating away from this cgroup and this cgroup dying.
-+		 * css_tryget() will fail when trying to take a ref on a cgroup
-+		 * that's ref count has hit 0.
++		 * This is a bit complicated.  It is possible task_css() is
++		 * seeing an old css pointer here.  This is caused by the
++		 * current thread migrating away from this cgroup and this
++		 * cgroup dying.  css_tryget() will fail when trying to take a
++		 * ref on a cgroup that's ref count has hit 0.
 +		 *
 +		 * Therefore, if it does fail, this means current must have
 +		 * been swapped away already and this is waiting for it to

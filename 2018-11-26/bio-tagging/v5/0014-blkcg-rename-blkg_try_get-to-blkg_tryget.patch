@@ -1,4 +1,4 @@
-From 382a8794516233aa6b64d16199ca4a4065816116 Mon Sep 17 00:00:00 2001
+From 30c13f8823c49152593d4747bec8b2429df75b64 Mon Sep 17 00:00:00 2001
 From: Dennis Zhou <dennis@kernel.org>
 Date: Tue, 28 Aug 2018 12:20:37 -0700
 Subject: [PATCH 14/14] blkcg: rename blkg_try_get() to blkg_tryget()
@@ -18,10 +18,10 @@ Acked-by: Tejun Heo <tj@kernel.org>
  4 files changed, 8 insertions(+), 11 deletions(-)
 
 diff --git a/block/bio.c b/block/bio.c
-index 8a616fd315bd..74495a98c70c 100644
+index 7ec5316e6ecc..06760543ec81 100644
 --- a/block/bio.c
 +++ b/block/bio.c
-@@ -1989,7 +1989,7 @@ static void __bio_associate_blkg(struct bio *bio, struct blkcg_gq *blkg)
+@@ -1990,7 +1990,7 @@ static void __bio_associate_blkg(struct bio *bio, struct blkcg_gq *blkg)
  {
  	bio_disassociate_blkg(bio);
  
@@ -58,7 +58,7 @@ index 5a79f06a730d..0b14c3d57769 100644
  
  		iolat = blkg_to_lat(blkg);
 diff --git a/include/linux/blk-cgroup.h b/include/linux/blk-cgroup.h
-index fc23bb758566..3741f5b78ffd 100644
+index 05909cf31ed1..64ac89130ae8 100644
 --- a/include/linux/blk-cgroup.h
 +++ b/include/linux/blk-cgroup.h
 @@ -490,27 +490,25 @@ static inline void blkg_get(struct blkcg_gq *blkg)

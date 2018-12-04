@@ -1,4 +1,4 @@
-From 669e14ad507146e6d3351efa733410af54485cbe Mon Sep 17 00:00:00 2001
+From a9381ad3a8d794a09694544507e58ad15275893b Mon Sep 17 00:00:00 2001
 From: Dennis Zhou <dennis@kernel.org>
 Date: Wed, 15 Aug 2018 11:20:04 -0700
 Subject: [PATCH 07/14] blkcg: consolidate bio_issue_init() to be a part of
@@ -20,7 +20,7 @@ Reviewed-by: Liu Bo <bo.liu@linux.alibaba.com>
  5 files changed, 11 insertions(+), 10 deletions(-)
 
 diff --git a/block/bio.c b/block/bio.c
-index dfd9b9b8476b..8686023d9ad6 100644
+index 1e852ab904aa..90089124b512 100644
 --- a/block/bio.c
 +++ b/block/bio.c
 @@ -611,6 +611,7 @@ void __bio_clone_fast(struct bio *bio, struct bio *bio_src)
@@ -83,7 +83,7 @@ index 559c55bda040..cfb96d5170d0 100644
  	return bio;
  }
 diff --git a/include/linux/blk-cgroup.h b/include/linux/blk-cgroup.h
-index 81b45943ce29..58eb91a9aa8d 100644
+index 3c87ae71156f..5cca4ffcdae5 100644
 --- a/include/linux/blk-cgroup.h
 +++ b/include/linux/blk-cgroup.h
 @@ -799,6 +799,12 @@ static inline bool blk_throtl_bio(struct request_queue *q, struct blkcg_gq *blkg
@@ -99,16 +99,16 @@ index 81b45943ce29..58eb91a9aa8d 100644
  static inline bool blkcg_bio_issue_check(struct request_queue *q,
  					 struct bio *bio)
  {
-@@ -826,6 +832,8 @@ static inline bool blkcg_bio_issue_check(struct request_queue *q,
+@@ -824,6 +830,8 @@ static inline bool blkcg_bio_issue_check(struct request_queue *q,
  		blkg_rwstat_add(&blkg->stat_ios, bio->bi_opf, 1);
  	}
  
 +	blkcg_bio_issue_init(bio);
 +
- 	rcu_read_unlock();
  	return !throtl;
  }
-@@ -932,6 +940,7 @@ static inline char *blkg_path(struct blkcg_gq *blkg) { return NULL; }
+ 
+@@ -929,6 +937,7 @@ static inline char *blkg_path(struct blkcg_gq *blkg) { return NULL; }
  static inline void blkg_get(struct blkcg_gq *blkg) { }
  static inline void blkg_put(struct blkcg_gq *blkg) { }
  

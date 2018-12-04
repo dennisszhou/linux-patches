@@ -1,4 +1,4 @@
-From bb0bc6a873f0022564db4dae64b9e8cd691a2647 Mon Sep 17 00:00:00 2001
+From b8639f84f9dbd837bc5f412c525012ebaf06d269 Mon Sep 17 00:00:00 2001
 From: Dennis Zhou <dennis@kernel.org>
 Date: Wed, 15 Aug 2018 13:44:26 -0700
 Subject: [PATCH 10/14] blkcg: remove bio->bi_css and instead use bio->bi_blkg
@@ -25,7 +25,7 @@ Acked-by: Tejun Heo <tj@kernel.org>
  8 files changed, 32 insertions(+), 66 deletions(-)
 
 diff --git a/block/bio.c b/block/bio.c
-index caffe1a5ae1d..32a070557b5e 100644
+index b42477b6a225..2b6bc7b805ec 100644
 --- a/block/bio.c
 +++ b/block/bio.c
 @@ -610,7 +610,7 @@ void __bio_clone_fast(struct bio *bio, struct bio *bio_src)
@@ -51,7 +51,7 @@ index caffe1a5ae1d..32a070557b5e 100644
 - *
 - * This function takes an extra reference of @blkcg_css which will be put
 - * when @bio is released.  The caller must own @bio and is responsible for
-- * synchronizing calls to this function.  If @blkcg_css is NULL, a call to
+- * synchronizing calls to this function.  If @blkcg_css is %NULL, a call to
 - * blkcg_get_css() finds the current css from the kthread or task.
 - */
 -int bio_associate_blkcg(struct bio *bio, struct cgroup_subsys_state *blkcg_css)
@@ -81,7 +81,7 @@ index caffe1a5ae1d..32a070557b5e 100644
  		blkg_put(bio->bi_blkg);
  		bio->bi_blkg = NULL;
  	}
-@@ -2046,7 +2020,6 @@ void bio_associate_blkg_from_css(struct bio *bio,
+@@ -2047,7 +2021,6 @@ void bio_associate_blkg_from_css(struct bio *bio,
  				 struct cgroup_subsys_state *css)
  {
  	css_get(css);
@@ -89,7 +89,7 @@ index caffe1a5ae1d..32a070557b5e 100644
  	__bio_associate_blkg_from_css(bio, css);
  }
  EXPORT_SYMBOL_GPL(bio_associate_blkg_from_css);
-@@ -2065,13 +2038,10 @@ void bio_associate_blkg_from_page(struct bio *bio, struct page *page)
+@@ -2066,13 +2039,10 @@ void bio_associate_blkg_from_page(struct bio *bio, struct page *page)
  {
  	struct cgroup_subsys_state *css;
  
@@ -103,7 +103,7 @@ index caffe1a5ae1d..32a070557b5e 100644
  	__bio_associate_blkg_from_css(bio, css);
  }
  #endif /* CONFIG_MEMCG */
-@@ -2093,8 +2063,10 @@ void bio_associate_blkg(struct bio *bio)
+@@ -2094,8 +2064,10 @@ void bio_associate_blkg(struct bio *bio)
  
  	rcu_read_lock();
  
@@ -116,7 +116,7 @@ index caffe1a5ae1d..32a070557b5e 100644
  
  	if (!blkcg->css.parent) {
  		__bio_associate_blkg(bio, q->root_blkg);
-@@ -2114,27 +2086,22 @@ EXPORT_SYMBOL_GPL(bio_associate_blkg);
+@@ -2115,27 +2087,22 @@ EXPORT_SYMBOL_GPL(bio_associate_blkg);
   */
  void bio_disassociate_task(struct bio *bio)
  {
@@ -241,7 +241,7 @@ index f0438061a5a3..84e1c4dc703a 100644
  
  #ifdef CONFIG_HIGHMEM
 diff --git a/include/linux/blk-cgroup.h b/include/linux/blk-cgroup.h
-index 58eb91a9aa8d..e777de0d45d1 100644
+index 5cca4ffcdae5..3674ff8d8e50 100644
 --- a/include/linux/blk-cgroup.h
 +++ b/include/linux/blk-cgroup.h
 @@ -308,8 +308,8 @@ static inline struct blkcg *css_to_blkcg(struct cgroup_subsys_state *css)

@@ -1,10 +1,10 @@
-From bf26069a9eb9d0ba0cc148cb14bc55a4dc6e5a6c Mon Sep 17 00:00:00 2001
+From ded85c155b57ef2e93632a7bade26fac86febfc3 Mon Sep 17 00:00:00 2001
 From: Dennis Zhou <dennis@kernel.org>
 Date: Wed, 15 Aug 2018 13:18:50 -0700
 Subject: [PATCH 09/14] blkcg: associate writeback bios with a blkg
 
 One of the goals of this series is to remove a separate reference to
-the css of the bio. This can and should be accessed via bio_blkcg. In
+the css of the bio. This can and should be accessed via bio_blkcg(). In
 this patch, wbc_init_bio() now requires a bio to have a device
 associated with it.
 
@@ -47,10 +47,10 @@ index 476722b7b636..baf19bf28385 100644
  
  
 diff --git a/block/bio.c b/block/bio.c
-index 2410e4ac9261..caffe1a5ae1d 100644
+index f0f069c1823c..b42477b6a225 100644
 --- a/block/bio.c
 +++ b/block/bio.c
-@@ -2033,6 +2033,24 @@ static void __bio_associate_blkg_from_css(struct bio *bio,
+@@ -2034,6 +2034,24 @@ static void __bio_associate_blkg_from_css(struct bio *bio,
  	rcu_read_unlock();
  }
  

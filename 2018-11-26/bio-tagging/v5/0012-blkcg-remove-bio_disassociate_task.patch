@@ -1,4 +1,4 @@
-From 98108e05e0097d7f653cc8a20c133e2c35e2b7a7 Mon Sep 17 00:00:00 2001
+From 64e2f5d258f6220a585b39a20222da84ea1ef3f2 Mon Sep 17 00:00:00 2001
 From: Dennis Zhou <dennis@kernel.org>
 Date: Sat, 24 Nov 2018 16:18:16 -0800
 Subject: [PATCH 12/14] blkcg: remove bio_disassociate_task()
@@ -15,7 +15,7 @@ Acked-by: Tejun Heo <tj@kernel.org>
  2 files changed, 1 insertion(+), 12 deletions(-)
 
 diff --git a/block/bio.c b/block/bio.c
-index 129defe184b3..8a616fd315bd 100644
+index ce1e512dca5a..7ec5316e6ecc 100644
 --- a/block/bio.c
 +++ b/block/bio.c
 @@ -244,7 +244,7 @@ struct bio_vec *bvec_alloc(gfp_t gfp_mask, int nr, unsigned long *idx,
@@ -27,7 +27,7 @@ index 129defe184b3..8a616fd315bd 100644
  }
  EXPORT_SYMBOL(bio_uninit);
  
-@@ -2072,15 +2072,6 @@ void bio_associate_blkg(struct bio *bio)
+@@ -2073,15 +2073,6 @@ void bio_associate_blkg(struct bio *bio)
  }
  EXPORT_SYMBOL_GPL(bio_associate_blkg);
  

@@ -1,4 +1,4 @@
-From 050d0dbd4502ab1042264a916dd8ce96c830bc7d Mon Sep 17 00:00:00 2001
+From 1a2ec63ba9de0176167082c50faf6da6d2098e2f Mon Sep 17 00:00:00 2001
 From: Dennis Zhou <dennis@kernel.org>
 Date: Wed, 15 Aug 2018 12:38:21 -0700
 Subject: [PATCH 08/14] blkcg: associate a blkg for pages being evicted by swap
@@ -19,7 +19,7 @@ Acked-by: Tejun Heo <tj@kernel.org>
  3 files changed, 42 insertions(+), 28 deletions(-)
 
 diff --git a/block/bio.c b/block/bio.c
-index 8686023d9ad6..2410e4ac9261 100644
+index 90089124b512..f0f069c1823c 100644
 --- a/block/bio.c
 +++ b/block/bio.c
 @@ -1957,30 +1957,6 @@ EXPORT_SYMBOL(bioset_init_from_src);
@@ -53,7 +53,7 @@ index 8686023d9ad6..2410e4ac9261 100644
  /**
   * bio_associate_blkcg - associate a bio with the specified blkcg
   * @bio: target bio
-@@ -2044,6 +2020,44 @@ static void __bio_associate_blkg(struct bio *bio, struct blkcg_gq *blkg)
+@@ -2045,6 +2021,44 @@ static void __bio_associate_blkg(struct bio *bio, struct blkcg_gq *blkg)
  	bio->bi_blkg = blkg_try_get_closest(blkg);
  }
  
@@ -117,10 +117,10 @@ index 6ee2ea8b378a..f13572c254a7 100644
  
  #ifdef CONFIG_BLK_CGROUP
 diff --git a/mm/page_io.c b/mm/page_io.c
-index cb4eef2edc37..9b35b9523210 100644
+index 5bdfd21c1bd9..3475733b1926 100644
 --- a/mm/page_io.c
 +++ b/mm/page_io.c
-@@ -340,7 +340,7 @@ int __swap_writepage(struct page *page, struct writeback_control *wbc,
+@@ -339,7 +339,7 @@ int __swap_writepage(struct page *page, struct writeback_control *wbc,
  		goto out;
  	}
  	bio->bi_opf = REQ_OP_WRITE | REQ_SWAP | wbc_to_write_flags(wbc);

@@ -1,4 +1,4 @@
-From 0384628a13fb34d7353e4875b833dc6bb615748a Mon Sep 17 00:00:00 2001
+From 2e1cac4c3bdd40b6a21fce9d456bc120e300b6ba Mon Sep 17 00:00:00 2001
 From: Dennis Zhou <dennis@kernel.org>
 Date: Fri, 24 Aug 2018 14:05:06 -0700
 Subject: [PATCH 02/14] blkcg: update blkg_lookup_create() to do locking
@@ -91,7 +91,7 @@ index fe0c4ca312ff..e6f68f15dee9 100644
  			blkg = NULL;
  		spin_unlock_irq(&q->queue_lock);
 diff --git a/include/linux/blk-cgroup.h b/include/linux/blk-cgroup.h
-index db8214047486..49f399cfb0b6 100644
+index f619307171a6..b3b1a8187d23 100644
 --- a/include/linux/blk-cgroup.h
 +++ b/include/linux/blk-cgroup.h
 @@ -181,6 +181,8 @@ extern struct cgroup_subsys_state * const blkcg_root_css;

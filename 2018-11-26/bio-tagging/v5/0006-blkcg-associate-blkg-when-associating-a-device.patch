@@ -1,4 +1,4 @@
-From e84441ef275350268ea9390aa2fb88044f743ab4 Mon Sep 17 00:00:00 2001
+From bc437c0b7050f79900ee489e8d376eb47e6ad8e5 Mon Sep 17 00:00:00 2001
 From: Dennis Zhou <dennis@kernel.org>
 Date: Tue, 20 Nov 2018 10:19:28 -0800
 Subject: [PATCH 06/14] blkcg: associate blkg when associating a device
@@ -8,13 +8,10 @@ blk-throttle and blk-iolatency. However, because a blkg represents a
 relationship between a blkcg and a request_queue, it makes sense to keep
 the blkg->q and bio->bi_disk->queue consistent.
 
-This patch moves association into the bio_set_dev macro. This should
+This patch moves association into the bio_set_dev macro(). This should
 cover the majority of cases where the device is set/changed keeping the
-two pointers consistent.
-
-Fallback code is added to blkcg_bio_issue_check() to catch any missing
-paths. The check is safe here because bio->bi_disk->queue must exist for
-a request to have made it to generic_make_request_checks().
+two pointers consistent. Fallback code is added to
+blkcg_bio_issue_check() to catch any missing paths.
 
 Signed-off-by: Dennis Zhou <dennis@kernel.org>
 ---
@@ -22,15 +19,14 @@ Signed-off-by: Dennis Zhou <dennis@kernel.org>
  block/blk-iolatency.c      |  4 +---
  block/blk-throttle.c       |  1 -
  include/linux/bio.h        |  2 ++
- include/linux/blk-cgroup.h | 10 ++++------
- mm/page_io.c               |  1 +
- 6 files changed, 9 insertions(+), 10 deletions(-)
+ include/linux/blk-cgroup.h | 11 +++--------
+ 5 files changed, 7 insertions(+), 12 deletions(-)
 
 diff --git a/block/bio.c b/block/bio.c
-index c3f9ebe7d734..dfd9b9b8476b 100644
+index 41ebb3f8e2fc..1e852ab904aa 100644
 --- a/block/bio.c
 +++ b/block/bio.c
-@@ -2073,6 +2073,7 @@ void bio_associate_blkg(struct bio *bio)
+@@ -2074,6 +2074,7 @@ void bio_associate_blkg(struct bio *bio)
  
  	rcu_read_unlock();
  }
@@ -90,10 +86,10 @@ index 62715a5a4f32..6ee2ea8b378a 100644
  
  #define bio_dev(bio) \
 diff --git a/include/linux/blk-cgroup.h b/include/linux/blk-cgroup.h
-index 9d796a4f8ef0..81b45943ce29 100644
+index c08e96e521ed..3c87ae71156f 100644
 --- a/include/linux/blk-cgroup.h
 +++ b/include/linux/blk-cgroup.h
-@@ -802,21 +802,19 @@ static inline bool blk_throtl_bio(struct request_queue *q, struct blkcg_gq *blkg
+@@ -802,21 +802,17 @@ static inline bool blk_throtl_bio(struct request_queue *q, struct blkcg_gq *blkg
  static inline bool blkcg_bio_issue_check(struct request_queue *q,
  					 struct bio *bio)
  {
@@ -101,15 +97,14 @@ index 9d796a4f8ef0..81b45943ce29 100644
  	struct blkcg_gq *blkg;
  	bool throtl = false;
  
- 	rcu_read_lock();
+-	rcu_read_lock();
++	if (!bio->bi_blkg)
++		bio_associate_blkg(bio);
  
 -	/* associate blkcg if bio hasn't attached one */
 -	bio_associate_blkcg(bio, NULL);
 -	blkcg = bio_blkcg(bio);
 -	blkg = blkg_lookup_create(blkcg, q);
-+	if (!bio->bi_blkg)
-+		bio_associate_blkg(bio);
-+
 +	blkg = bio->bi_blkg;
  
  	throtl = blk_throtl_bio(q, blkg, bio);
@@ -119,18 +114,14 @@ index 9d796a4f8ef0..81b45943ce29 100644
  		/*
  		 * If the bio is flagged with BIO_QUEUE_ENTERED it means this
  		 * is a split bio and we would have already accounted for the
-diff --git a/mm/page_io.c b/mm/page_io.c
-index 5bdfd21c1bd9..cb4eef2edc37 100644
---- a/mm/page_io.c
-+++ b/mm/page_io.c
-@@ -37,6 +37,7 @@ static struct bio *get_swap_bio(gfp_t gfp_flags,
- 		struct block_device *bdev;
+@@ -828,7 +824,6 @@ static inline bool blkcg_bio_issue_check(struct request_queue *q,
+ 		blkg_rwstat_add(&blkg->stat_ios, bio->bi_opf, 1);
+ 	}
  
- 		bio->bi_iter.bi_sector = map_swap_page(page, &bdev);
-+		/* we want the bio to be associated with the page's css */
- 		bio_set_dev(bio, bdev);
- 		bio->bi_iter.bi_sector <<= PAGE_SHIFT - 9;
- 		bio->bi_end_io = end_io;
+-	rcu_read_unlock();
+ 	return !throtl;
+ }
+ 
 -- 
 2.17.1
 
