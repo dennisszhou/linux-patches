@@ -1,0 +1,38 @@
+From 8f0f6da67fa59dbe5e6d1460cb40f91daf1a4daf Mon Sep 17 00:00:00 2001
+From: Dennis Zhou <dennis@kernel.org>
+Date: Thu, 6 Dec 2018 09:38:46 -0800
+Subject: [PATCH] blkcg: put back rcu lock in blkcg_bio_issue_check()
+
+I was a little overzealous in removing the rcu_read_lock() call from
+blkcg_bio_issue_check() and it broke blk-throttle. Put it back.
+
+Fixes: e35403a034bf ("blkcg: associate blkg when associating a device")
+Signed-off-by: Dennis Zhou <dennis@kernel.org>
+---
+ include/linux/blk-cgroup.h | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/include/linux/blk-cgroup.h b/include/linux/blk-cgroup.h
+index 752de1becb5c..bf13ecb0fe4f 100644
+--- a/include/linux/blk-cgroup.h
++++ b/include/linux/blk-cgroup.h
+@@ -764,6 +764,8 @@ static inline bool blkcg_bio_issue_check(struct request_queue *q,
+ 	struct blkcg_gq *blkg;
+ 	bool throtl = false;
+ 
++	rcu_read_lock();
++
+ 	if (!bio->bi_blkg) {
+ 		char b[BDEVNAME_SIZE];
+ 
+@@ -791,6 +793,7 @@ static inline bool blkcg_bio_issue_check(struct request_queue *q,
+ 
+ 	blkcg_bio_issue_init(bio);
+ 
++	rcu_read_unlock();
+ 	return !throtl;
+ }
+ 
+-- 
+2.17.1
+
