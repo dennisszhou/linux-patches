@@ -1,7 +1,7 @@
 From cdbe74c5af0b3866a45d305d6be06c91a777d4ea Mon Sep 17 00:00:00 2001
 From: Dennis Zhou <dennis@kernel.org>
 Date: Sun, 9 Dec 2018 10:56:27 -0800
-Subject: [PATCH] block: fix iolat timestamp and restore accounting semantics
+Subject: [PATCH v2] block: fix iolat timestamp and restore accounting semantics
 
 The blk-iolatency controller measures the time from rq_qos_throttle() to
 rq_qos_done_bio() and attributes this time to the first bio that needs
@@ -30,6 +30,10 @@ Fixes: 5cdf2e3fea5e ("blkcg: associate blkg when associating a device")
 Signed-off-by: Dennis Zhou <dennis@kernel.org>
 Cc: Josef Bacik <josef@toxicpanda.com>
 ---
+v2:
+- Switched to reusing BIO_QUEUE_ENTERED rather than adding a second
+  timestamp to the bio struct.
+
  block/blk-iolatency.c |  2 +-
  block/blk-mq.c        | 12 ++++++++++++
  2 files changed, 13 insertions(+), 1 deletion(-)
