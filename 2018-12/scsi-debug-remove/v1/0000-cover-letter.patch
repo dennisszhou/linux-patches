@@ -1,0 +1,36 @@
+From 1385c733ba2fcb472f2f9d03ddff09480cfb1ff3 Mon Sep 17 00:00:00 2001
+From: Dennis Zhou <dennis@kernel.org>
+Date: Wed, 12 Dec 2018 15:03:09 -0800
+Subject: [PATCH blktests 0/2] Add scsi-stress-remove to blktests
+
+Hi,
+
+Ming Lei's scsi-stress-remove test found a bug in blkg destruction [1]
+where bios being created when the request_queue was being cleaned up
+threw a NPE in blkg association. The fix is currently being discussed in
+[2]. To make this test more accessible, I've ported it to blktests with
+Ming Lei's copyright. I've tested this in my qemu instance and verified
+we do not see the NPE on a fixed kernel.
+
+Ming, please let me know if you have any objections.
+
+[1] https://lore.kernel.org/linux-block/CACVXFVO_QXipD3cmPvpLyBYSiEcWPN_ThQ=0pO9AwLqN-Lv93w@mail.gmail.com
+[2] https://lore.kernel.org/lkml/20181211230308.66276-1-dennis@kernel.org/
+
+This patchset is ontop of osandov#josef ad08c1fe0d9f.
+
+diffstats below:
+
+Dennis Zhou (2):
+  blktests: split out cgroup2 controller and file check
+  blktests: add Ming Lei's scsi-stress-remove
+
+ common/cgroup       | 18 ++++++---
+ tests/block/022     | 96 +++++++++++++++++++++++++++++++++++++++++++++
+ tests/block/022.out |  2 +
+ 3 files changed, 111 insertions(+), 5 deletions(-)
+ create mode 100755 tests/block/022
+ create mode 100644 tests/block/022.out
+
+Thanks,
+Dennis
