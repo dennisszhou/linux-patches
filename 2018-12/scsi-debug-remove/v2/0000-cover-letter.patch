@@ -1,0 +1,21 @@
+From f29d590c2a6af9f2548c10bc77a3cac17f1136d0 Mon Sep 17 00:00:00 2001
+From: Dennis Zhou <dennis@kernel.org>
+Date: Thu, 13 Dec 2018 10:14:18 -0800
+Subject: [PATCH blktests 0/2] *** SUBJECT HERE ***
+
+*** BLURB HERE ***
+
+Dennis Zhou (2):
+  blktests: split out cgroup2 controller and file check
+  blktests: add Ming Lei's scsi-stress-remove
+
+ common/cgroup       | 18 ++++++---
+ tests/block/022     | 90 +++++++++++++++++++++++++++++++++++++++++++++
+ tests/block/022.out |  2 +
+ 3 files changed, 105 insertions(+), 5 deletions(-)
+ create mode 100755 tests/block/022
+ create mode 100644 tests/block/022.out
+
+-- 
+2.17.1
+

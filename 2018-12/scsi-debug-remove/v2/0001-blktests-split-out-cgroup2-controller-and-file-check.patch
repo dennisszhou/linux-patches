@@ -1,0 +1,56 @@
+From 1f8e23d350b859246e385c4d59fb651f1837f455 Mon Sep 17 00:00:00 2001
+From: Dennis Zhou <dennis@kernel.org>
+Date: Wed, 12 Dec 2018 13:53:01 -0800
+Subject: [PATCH blktests 1/2] blktests: split out cgroup2 controller and file
+ check
+
+This is a prep patch for a new test that will race blkg association and
+request_queue cleanup. As blkg association is a underlying cgroup io
+controller feature, we need the ability to check if the controller is
+available.
+
+Signed-off-by: Dennis Zhou <dennis@kernel.org>
+---
+ common/cgroup | 18 +++++++++++++-----
+ 1 file changed, 13 insertions(+), 5 deletions(-)
+
+diff --git a/common/cgroup b/common/cgroup
+index d445093..3481458 100644
+--- a/common/cgroup
++++ b/common/cgroup
+@@ -37,19 +37,27 @@ _have_cgroup2()
+ 	return 0
+ }
+ 
+-_have_cgroup2_controller_file()
++_have_cgroup2_controller()
+ {
+-	_have_cgroup2 || return 1
+-
+ 	local controller="$1"
+-	local file="$2"
+-	local dir
++
++	_have_cgroup2 || return 1
+ 
+ 	dir="$(_cgroup2_base_dir)"
++
+ 	if ! grep -q "$controller" "$dir/cgroup.controllers"; then
+ 		SKIP_REASON="no support for $controller cgroup controller; if it is enabled, you may need to boot with cgroup_no_v1=$controller"
+ 		return 1
+ 	fi
++}
++
++_have_cgroup2_controller_file()
++{
++	local controller="$1"
++	local file="$2"
++	local dir
++
++	_have_cgroup_2_controller "$controller" || return 1
+ 
+ 	mkdir "$dir/blktests"
+ 	echo "+$controller" > "$dir/cgroup.subtree_control"
+-- 
+2.17.1
+
