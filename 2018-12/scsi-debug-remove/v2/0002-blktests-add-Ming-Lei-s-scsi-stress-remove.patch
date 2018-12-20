@@ -1,40 +1,45 @@
-From f29d590c2a6af9f2548c10bc77a3cac17f1136d0 Mon Sep 17 00:00:00 2001
+From 2427c667fa5b3d425463e51f7475a272a615e95d Mon Sep 17 00:00:00 2001
 From: Dennis Zhou <dennis@kernel.org>
 Date: Wed, 12 Dec 2018 13:57:40 -0800
-Subject: [PATCH blktests v2 2/2] blktests: add Ming Lei's scsi-stress-remove
-In-Reply-To: <20181212230959.69975-3-dennis@kernel.org>
+Subject: [PATCH blktests 2/2] blktests: add Ming Lei's scsi-stress-remove
 
-This test exposed a race condition with shutting down a request_queue
-and the new blkg association. The issue ended up being that while the
-request_queue will just start failing requests, blkg destruction sets
-the q->root_blkg to %NULL. This caused a NPE when trying to reference
-it. So to help prevent this from happening again, integrate Ming's test
-into blktests so that it can more easily be ran.
+This test exposed a race condiiton when shutting down a request_queue
+with active IO against it and blkg association for the IOs [1]. The
+issue ended up being that while the request_queue will just start
+failing requests, blkg destruction sets the q->root_blkg to %NULL. This
+caused a NPE. This was fixed in [2].
+
+So to help prevent this from happening again, integrate Ming's test into
+blktests so that it can more easily be ran. Here I've ported it to fit
+better into the blktests framework.
+
+[1] https://lore.kernel.org/lkml/20181205171039.73066-1-dennis@kernel.org/
+[2] https://lore.kernel.org/lkml/20181211230308.66276-1-dennis@kernel.org/
 
 Signed-off-by: Dennis Zhou <dennis@kernel.org>
 Cc: Ming Lei <ming.lei@redhat.com>
 ---
 v2:
-- Change scheduler retrieving logic based on Ming's comment
+- Used helpers in common/scsi_debug per Omar's suggestion.
 
- tests/block/022     | 90 +++++++++++++++++++++++++++++++++++++++++++++
- tests/block/022.out |  2 +
- 2 files changed, 92 insertions(+)
- create mode 100755 tests/block/022
- create mode 100644 tests/block/022.out
+ tests/block/027     | 73 +++++++++++++++++++++++++++++++++++++++++++++
+ tests/block/027.out |  2 ++
+ 2 files changed, 75 insertions(+)
+ create mode 100755 tests/block/027
+ create mode 100644 tests/block/027.out
 
-diff --git a/tests/block/022 b/tests/block/022
+diff --git a/tests/block/027 b/tests/block/027
 new file mode 100755
-index 0000000..84336e0
+index 0000000..d5e1463
 --- /dev/null
-+++ b/tests/block/022
-@@ -0,0 +1,90 @@
++++ b/tests/block/027
+@@ -0,0 +1,73 @@
 +#!/bin/bash
 +# SPDX-License-Identifier: GPL-3.0+
 +# Copyright (C) 2018 Ming Lei
 +#
-+# Regression test for patch "blkcg: handle dying request_queue when associating
-+# a blkg"
++# Regression test for commit 0273ac349f08 ("blkcg: handle dying request_queue
++# when associating a blkg")
 +#
 +# This tries to expose the race condition between blkg association and
 +# request_queue shutdown. When a request_queue is shutdown, the corresponding
@@ -53,79 +58,62 @@ index 0000000..84336e0
 +}
 +
 +scsi_debug_stress_remove() {
-+	scsi_debug_path="/sys/bus/pseudo/drivers/scsi_debug"
-+	count=21
-+
-+	runtime=12
-+	nr_fio_jobs=8
-+	scsi_dbg_ndelay=10000
++	if ! _init_scsi_debug "$@"; then
++		return
++	fi
 +
 +	# set higher aio limit
 +	echo 524288 > /proc/sys/fs/aio-max-nr
 +
-+	#figure out the CAN_QUEUE
-+	can_queue=$(((count + 1) * (count / 2) / 2))
++	local dev fio_jobs scheds
++	local cnt=1
++	for dev in "${SCSI_DEBUG_DEVICES[@]}"; do
++		# create fio job
++		fio_jobs=$fio_jobs" --name=job1 --filename=/dev/$dev "
 +
-+	rmmod scsi_debug > /dev/null 2>&1
-+	modprobe scsi_debug virtual_gb=128 max_luns=$count \
-+		ndelay=$scsi_dbg_ndelay max_queue=$can_queue
-+
-+	# figure out scsi_debug disks
-+	hosts=$(ls -d /sys/bus/pseudo/drivers/scsi_debug/adapter0/host*)
-+	hostname=$(basename "$hosts")
-+	host=$(echo "$hostname" | grep -o -E '[0-9]+')
-+
-+	sdisks=$(ls -d $scsi_debug_path/adapter*/"$hostname"/target*/*/block/*)
-+	disks=""
-+	for sd in $sdisks; do
-+		disks+="/dev/"$(basename "$sd")
-+		disks+=" "
-+	done
-+
-+	fio_jobs=""
-+	cnt=0
-+	for sd in $disks; do
-+		cnt=$((cnt+1))
-+		fio_jobs=$fio_jobs" --name=job1 --filename=$sd: "
-+		dev_name=$(basename "$sd")
-+		q_path=/sys/block/$dev_name/queue
-+
-+		scheds=($(sed 's/[][]//g' "$q_path/scheduler"))
++		# set queue scheduler and queue_depth
++		queue_path=/sys/block/$dev/queue
++		scheds=($(sed 's/[][]//g' "$queue_path/scheduler"))
 +		sched_idx=$((cnt % ${#scheds[@]}))
-+		echo "${scheds[$sched_idx]}" > "$q_path/scheduler"
-+		echo $cnt > "$q_path/../device/queue_depth"
++		echo "${scheds[$sched_idx]}" > "$queue_path/scheduler"
++		echo $cnt > "$queue_path/../device/queue_depth"
++		cnt=$((cnt+1))
 +	done
 +
++	local num_jobs=4 runtime=21
 +	fio --rw=randread --size=128G --direct=1 --ioengine=libaio \
-+		--iodepth=2048 --numjobs=$nr_fio_jobs --bs=4k \
++		--iodepth=2048 --numjobs=$num_jobs --bs=4k \
 +		--group_reporting=1 --group_reporting=1 --runtime=$runtime \
 +		--loops=10000 "$fio_jobs" > "$FULL" 2>&1 &
 +
 +	sleep 7
-+	for sd in $disks; do
-+		dev_name=$(basename "$sd")
-+		dpath=/sys/block/$dev_name/device
-+		[ -f "$dpath/delete" ] && echo 1 > "$dpath/delete"
++	local device_path
++	for dev in "${SCSI_DEBUG_DEVICES[@]}"; do
++		# shutdown devices in progress
++		device_path=/sys/block/$dev/device
++		[ -f "$device_path/delete" ] && echo 1 > "$device_path/delete"
 +	done
 +
 +	wait
-+}
 +
++	_exit_scsi_debug
++}
 +
 +test() {
 +	echo "Running ${TEST_NAME}"
 +
-+	scsi_debug_stress_remove
++	scsi_debug_stress_remove virtual_gb=128 max_luns=21 ndelay=10000 \
++		max_queue=110
 +
 +	echo "Test complete"
 +}
-diff --git a/tests/block/022.out b/tests/block/022.out
+diff --git a/tests/block/027.out b/tests/block/027.out
 new file mode 100644
-index 0000000..14d43cb
+index 0000000..b03498f
 --- /dev/null
-+++ b/tests/block/022.out
++++ b/tests/block/027.out
 @@ -0,0 +1,2 @@
-+Running block/022
++Running block/027
 +Test complete
 -- 
 2.17.1

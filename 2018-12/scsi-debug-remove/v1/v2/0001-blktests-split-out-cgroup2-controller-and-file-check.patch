@@ -1,4 +1,4 @@
-From 9f2ff53d2cd76567426181a9e790f50169e412af Mon Sep 17 00:00:00 2001
+From 1f8e23d350b859246e385c4d59fb651f1837f455 Mon Sep 17 00:00:00 2001
 From: Dennis Zhou <dennis@kernel.org>
 Date: Wed, 12 Dec 2018 13:53:01 -0800
 Subject: [PATCH blktests 1/2] blktests: split out cgroup2 controller and file
@@ -11,14 +11,11 @@ available.
 
 Signed-off-by: Dennis Zhou <dennis@kernel.org>
 ---
-v2:
-- fixed minor typo.
-
  common/cgroup | 18 +++++++++++++-----
  1 file changed, 13 insertions(+), 5 deletions(-)
 
 diff --git a/common/cgroup b/common/cgroup
-index d445093..48e546f 100644
+index d445093..3481458 100644
 --- a/common/cgroup
 +++ b/common/cgroup
 @@ -37,19 +37,27 @@ _have_cgroup2()
@@ -50,7 +47,7 @@ index d445093..48e546f 100644
 +	local file="$2"
 +	local dir
 +
-+	_have_cgroup2_controller "$controller" || return 1
++	_have_cgroup_2_controller "$controller" || return 1
  
  	mkdir "$dir/blktests"
  	echo "+$controller" > "$dir/cgroup.subtree_control"
