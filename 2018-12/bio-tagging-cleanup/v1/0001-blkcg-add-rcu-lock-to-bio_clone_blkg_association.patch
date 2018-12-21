@@ -1,0 +1,40 @@
+From 3c09045b0a61d1d27147ec50fb32e480b073ac6f Mon Sep 17 00:00:00 2001
+From: Dennis Zhou <dennis@kernel.org>
+Date: Fri, 21 Dec 2018 06:30:02 -0800
+Subject: [PATCH] blkcg: add rcu lock to bio_clone_blkg_association()
+
+I cleaned up blkg_tryget_closest() to require rcu_read_lock() earlier.
+However, this was a subtle case too which clearly was too subtle for me.
+The idea was the src bio should be holding a ref to the blkg so rcu
+wasn't technically needed. If it doesn't hold a ref, it should be %NULL
+and the blkg->parent pointers are unused.
+
+This adds the appropriate read lock in bio_clone_blkg_association().
+
+Fixes: 80fd3c272c1a ("blkcg: clean up blkg_tryget_closest()")
+Reported-by: syzbot+a36a3ba92bea3b315c64@syzkaller.appspotmail.com
+Signed-off-by: Dennis Zhou <dennis@kernel.org>
+---
+ block/bio.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/block/bio.c b/block/bio.c
+index c288b9057042..9194d8ad3d5e 100644
+--- a/block/bio.c
++++ b/block/bio.c
+@@ -2096,8 +2096,12 @@ EXPORT_SYMBOL_GPL(bio_associate_blkg);
+  */
+ void bio_clone_blkg_association(struct bio *dst, struct bio *src)
+ {
++	rcu_read_lock();
++
+ 	if (src->bi_blkg)
+ 		__bio_associate_blkg(dst, src->bi_blkg);
++
++	rcu_read_unlock();
+ }
+ EXPORT_SYMBOL_GPL(bio_clone_blkg_association);
+ #endif /* CONFIG_BLK_CGROUP */
+-- 
+2.17.1
+
