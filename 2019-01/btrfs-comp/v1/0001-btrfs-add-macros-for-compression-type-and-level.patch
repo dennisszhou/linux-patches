@@ -1,0 +1,60 @@
+From cd253f455ac0941a7e659ba30b8c6fa06f83bb91 Mon Sep 17 00:00:00 2001
+From: Dennis Zhou <dennis@kernel.org>
+Date: Tue, 15 Jan 2019 13:51:02 -0800
+Subject: [PATCH 01/11] btrfs: add macros for compression type and level
+
+It is very easy to miss places that rely on a certain bitshifting for
+decyphering the type_level overloading. Make macros handle this instead.
+
+Signed-off-by: Dennis Zhou <dennis@kernel.org>
+---
+ fs/btrfs/compression.c | 2 +-
+ fs/btrfs/compression.h | 3 +++
+ fs/btrfs/zlib.c        | 2 +-
+ 3 files changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/fs/btrfs/compression.c b/fs/btrfs/compression.c
+index 548057630b69..586f95ac0aea 100644
+--- a/fs/btrfs/compression.c
++++ b/fs/btrfs/compression.c
+@@ -1036,9 +1036,9 @@ int btrfs_compress_pages(unsigned int type_level, struct address_space *mapping,
+ 			 unsigned long *total_in,
+ 			 unsigned long *total_out)
+ {
++	int type = BTRFS_COMPRESS_TYPE(type_level);
+ 	struct list_head *workspace;
+ 	int ret;
+-	int type = type_level & 0xF;
+ 
+ 	workspace = find_workspace(type);
+ 
+diff --git a/fs/btrfs/compression.h b/fs/btrfs/compression.h
+index ddda9b80bf20..69a9197dadc3 100644
+--- a/fs/btrfs/compression.h
++++ b/fs/btrfs/compression.h
+@@ -25,6 +25,9 @@
+ 
+ #define	BTRFS_ZLIB_DEFAULT_LEVEL		3
+ 
++#define BTRFS_COMPRESS_TYPE(type_level)		(type_level & 0xF)
++#define BTRFS_COMPRESS_LEVEL(type_level)	((type_level & 0xF0) >> 4)
++
+ struct compressed_bio {
+ 	/* number of bios pending for this compressed extent */
+ 	refcount_t pending_bios;
+diff --git a/fs/btrfs/zlib.c b/fs/btrfs/zlib.c
+index 970ff3e35bb3..1480b3eee306 100644
+--- a/fs/btrfs/zlib.c
++++ b/fs/btrfs/zlib.c
+@@ -393,7 +393,7 @@ static int zlib_decompress(struct list_head *ws, unsigned char *data_in,
+ static void zlib_set_level(struct list_head *ws, unsigned int type)
+ {
+ 	struct workspace *workspace = list_entry(ws, struct workspace, list);
+-	unsigned level = (type & 0xF0) >> 4;
++	unsigned int level = BTRFS_COMPRESS_LEVEL(type);
+ 
+ 	if (level > 9)
+ 		level = 9;
+-- 
+2.17.1
+
