@@ -1,0 +1,70 @@
+From e8c38182a5d71cbda2b5ece58891b6eee11feee9 Mon Sep 17 00:00:00 2001
+From: Dennis Zhou <dennis@kernel.org>
+Date: Tue, 15 Jan 2019 13:51:02 -0800
+Subject: [PATCH 01/12] btrfs: add helpers for compression type and level
+
+It is very easy to miss places that rely on a certain bitshifting for
+decyphering the type_level overloading. Add helpers to do this instead.
+
+Signed-off-by: Dennis Zhou <dennis@kernel.org>
+Reviewed-by: Nikolay Borisov <nborisov@suse.com>
+Reviewed-by: Josef Bacik <josef@toxicpanda.com>
+Cc: Omar Sandoval <osandov@osandov.com>
+---
+ fs/btrfs/compression.c |  2 +-
+ fs/btrfs/compression.h | 10 ++++++++++
+ fs/btrfs/zlib.c        |  2 +-
+ 3 files changed, 12 insertions(+), 2 deletions(-)
+
+diff --git a/fs/btrfs/compression.c b/fs/btrfs/compression.c
+index 548057630b69..94a0b0a3a301 100644
+--- a/fs/btrfs/compression.c
++++ b/fs/btrfs/compression.c
+@@ -1036,9 +1036,9 @@ int btrfs_compress_pages(unsigned int type_level, struct address_space *mapping,
+ 			 unsigned long *total_in,
+ 			 unsigned long *total_out)
+ {
++	int type = btrfs_compress_type(type_level);
+ 	struct list_head *workspace;
+ 	int ret;
+-	int type = type_level & 0xF;
+ 
+ 	workspace = find_workspace(type);
+ 
+diff --git a/fs/btrfs/compression.h b/fs/btrfs/compression.h
+index ddda9b80bf20..004db0b3111b 100644
+--- a/fs/btrfs/compression.h
++++ b/fs/btrfs/compression.h
+@@ -64,6 +64,16 @@ struct compressed_bio {
+ 	u32 sums;
+ };
+ 
++static inline unsigned int btrfs_compress_type(unsigned int type_level)
++{
++	return (type_level & 0xF);
++}
++
++static inline unsigned int btrfs_compress_level(unsigned int type_level)
++{
++	return ((type_level & 0xF0) >> 4);
++}
++
+ void __init btrfs_init_compress(void);
+ void __cold btrfs_exit_compress(void);
+ 
+diff --git a/fs/btrfs/zlib.c b/fs/btrfs/zlib.c
+index 970ff3e35bb3..2bd655c4f8b4 100644
+--- a/fs/btrfs/zlib.c
++++ b/fs/btrfs/zlib.c
+@@ -393,7 +393,7 @@ static int zlib_decompress(struct list_head *ws, unsigned char *data_in,
+ static void zlib_set_level(struct list_head *ws, unsigned int type)
+ {
+ 	struct workspace *workspace = list_entry(ws, struct workspace, list);
+-	unsigned level = (type & 0xF0) >> 4;
++	unsigned int level = btrfs_compress_level(type);
+ 
+ 	if (level > 9)
+ 		level = 9;
+-- 
+2.17.1
+
