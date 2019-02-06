@@ -1,0 +1,32 @@
+From 16b7c3fe05984a95436da1e9e01c80de1fdbba25 Mon Sep 17 00:00:00 2001
+From: Dennis Zhou <dennis@kernel.org>
+Date: Tue, 5 Feb 2019 12:43:08 -0800
+Subject: [PATCH 00/12] *** SUBJECT HERE ***
+
+*** BLURB HERE ***
+
+Dennis Zhou (12):
+  btrfs: add helpers for compression type and level
+  btrfs: rename workspaces_list to workspace_manager
+  btrfs: manage heuristic workspace as index 0
+  btrfs: unify compression ops with workspace_manager
+  btrfs: add helper methods for workspace manager init and cleanup
+  btrfs: add compression interface in (get/put)_workspace()
+  btrfs: move to fn pointers for get/put workspaces
+  btrfs: plumb level through the compression interface
+  btrfs: change set_level() to bound the level passed in
+  btrfs: zstd use the passed through level instead of default
+  btrfs: make zstd memory requirements monotonic
+  btrfs: add zstd compression level support
+
+ fs/btrfs/compression.c | 255 ++++++++++++++++-----------------
+ fs/btrfs/compression.h |  53 ++++++-
+ fs/btrfs/lzo.c         |  31 +++-
+ fs/btrfs/super.c       |  10 +-
+ fs/btrfs/zlib.c        |  48 ++++++-
+ fs/btrfs/zstd.c        | 318 +++++++++++++++++++++++++++++++++++++++--
+ 6 files changed, 556 insertions(+), 159 deletions(-)
+
+-- 
+2.17.1
+
