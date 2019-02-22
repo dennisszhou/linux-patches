@@ -1,0 +1,46 @@
+From 6184a6aff3c21d0afd398f1d664d22b8711a085e Mon Sep 17 00:00:00 2001
+From: Dennis Zhou <dennis@kernel.org>
+Date: Thu, 21 Feb 2019 12:17:42 -0800
+Subject: [PATCH v2] btrfs: zstd ensure reclaim timer is properly cleaned up
+
+The timer function, zstd_reclaim_timer_fn(), reschedules itself under
+certain conditions. When cleaning up, take the lock and remove all
+workspaces. This prevents the timer from rearming itself. Lastly, switch
+to del_timer_sync() to ensure that the timer function can't trigger as
+we're unloading.
+
+Signed-off-by: Dennis Zhou <dennis@kernel.org>
+---
+v2:
+- cleanup workspaces and then disable the timer
+
+ fs/btrfs/zstd.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/fs/btrfs/zstd.c b/fs/btrfs/zstd.c
+index 3e418a3aeb11..6b9e29d050f3 100644
+--- a/fs/btrfs/zstd.c
++++ b/fs/btrfs/zstd.c
+@@ -195,8 +195,7 @@ static void zstd_cleanup_workspace_manager(void)
+ 	struct workspace *workspace;
+ 	int i;
+ 
+-	del_timer(&wsm.timer);
+-
++	spin_lock(&wsm.lock);
+ 	for (i = 0; i < ZSTD_BTRFS_MAX_LEVEL; i++) {
+ 		while (!list_empty(&wsm.idle_ws[i])) {
+ 			workspace = container_of(wsm.idle_ws[i].next,
+@@ -206,6 +205,9 @@ static void zstd_cleanup_workspace_manager(void)
+ 			wsm.ops->free_workspace(&workspace->list);
+ 		}
+ 	}
++	spin_unlock(&wsm.lock);
++
++	del_timer_sync(&wsm.timer);
+ }
+ 
+ /*
+-- 
+2.17.1
+
