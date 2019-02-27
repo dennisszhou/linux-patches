@@ -1,0 +1,33 @@
+From f58c4fc56ca834fc805a3f42dd577c0385714e85 Mon Sep 17 00:00:00 2001
+From: Dennis Zhou <dennis@kernel.org>
+Date: Mon, 25 Feb 2019 13:43:38 -0800
+Subject: [PATCH 04/12] percpu: manage chunks based on contig_bits instead of
+ free_bytes
+
+When a chunk becomes fragmented, it can end up having a large number of
+small allocation areas free. The free_bytes sorting of chunks leads to
+unnecessary checking of chunks that cannot satisfy the allocation.
+Switch to contig_bits sorting to prevent scanning chunks that may not be
+able to service the allocation request.
+
+Signed-off-by: Dennis Zhou <dennis@kernel.org>
+---
+ mm/percpu.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/mm/percpu.c b/mm/percpu.c
+index b40112b2fc59..c996bcffbb2a 100644
+--- a/mm/percpu.c
++++ b/mm/percpu.c
+@@ -234,7 +234,7 @@ static int pcpu_chunk_slot(const struct pcpu_chunk *chunk)
+ 	if (chunk->free_bytes < PCPU_MIN_ALLOC_SIZE || chunk->contig_bits == 0)
+ 		return 0;
+ 
+-	return pcpu_size_to_slot(chunk->free_bytes);
++	return pcpu_size_to_slot(chunk->contig_bits * PCPU_MIN_ALLOC_SIZE);
+ }
+ 
+ /* set the pointer to a chunk in a page struct */
+-- 
+2.17.1
+

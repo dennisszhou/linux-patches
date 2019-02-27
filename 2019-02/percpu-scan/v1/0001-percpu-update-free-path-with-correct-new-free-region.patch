@@ -1,0 +1,33 @@
+From ef7bd6a79643a38675f3293d3954065026af88e1 Mon Sep 17 00:00:00 2001
+From: Dennis Zhou <dennis@kernel.org>
+Date: Thu, 21 Feb 2019 15:50:19 -0800
+Subject: [PATCH 01/12] percpu: update free path with correct new free region
+
+When updating the chunk's contig_hint on the free path of a hint that
+does not touch the page boundaries, it was incorrectly using the
+starting offset of the free region and the block's contig_hint. This
+could lead to incorrect assumptions about fit given a size and better
+alignment of the start. Fix this by using (end - start) as this is only
+called when updating a hint within a block.
+
+Signed-off-by: Dennis Zhou <dennis@kernel.org>
+---
+ mm/percpu.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/mm/percpu.c b/mm/percpu.c
+index db86282fd024..53bd79a617b1 100644
+--- a/mm/percpu.c
++++ b/mm/percpu.c
+@@ -871,7 +871,7 @@ static void pcpu_block_update_hint_free(struct pcpu_chunk *chunk, int bit_off,
+ 		pcpu_chunk_refresh_hint(chunk);
+ 	else
+ 		pcpu_chunk_update(chunk, pcpu_block_off_to_off(s_index, start),
+-				  s_block->contig_hint);
++				  end - start);
+ }
+ 
+ /**
+-- 
+2.17.1
+

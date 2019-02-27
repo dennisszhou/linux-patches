@@ -1,0 +1,75 @@
+From cc2fa0ab9bab34d1eefdc0ccdbf5743f74d94d21 Mon Sep 17 00:00:00 2001
+From: Dennis Zhou <dennis@kernel.org>
+Date: Thu, 21 Feb 2019 15:44:35 -0800
+Subject: [PATCH 03/12] percpu: introduce helper to determine if two regions
+ overlap
+
+While block hints were always accurate, it's possible when spanning
+across blocks that we miss updating the chunk's contig_hint. Rather than
+rely on correctness of the boundaries of hints, do a full overlap
+comparison.
+
+Signed-off-by: Dennis Zhou <dennis@kernel.org>
+---
+ mm/percpu.c | 31 +++++++++++++++++++++++++++----
+ 1 file changed, 27 insertions(+), 4 deletions(-)
+
+diff --git a/mm/percpu.c b/mm/percpu.c
+index 69ca51d238b5..b40112b2fc59 100644
+--- a/mm/percpu.c
++++ b/mm/percpu.c
+@@ -546,6 +546,24 @@ static inline int pcpu_cnt_pop_pages(struct pcpu_chunk *chunk, int bit_off,
+ 	       bitmap_weight(chunk->populated, page_start);
+ }
+ 
++/*
++ * pcpu_region_overlap - determines if two regions overlap
++ * @a: start of first region, inclusive
++ * @b: end of first region, exclusive
++ * @x: start of second region, inclusive
++ * @y: end of second region, exclusive
++ *
++ * This is used to determine if the hint region [a, b) overlaps with the
++ * allocated region [x, y).
++ */
++static inline bool pcpu_region_overlap(int a, int b, int x, int y)
++{
++	if ((x >= a && x < b) || (y > a && y <= b) ||
++	    (x <= a && y >= b))
++		return true;
++	return false;
++}
++
+ /**
+  * pcpu_chunk_update - updates the chunk metadata given a free area
+  * @chunk: chunk of interest
+@@ -710,8 +728,11 @@ static void pcpu_block_update_hint_alloc(struct pcpu_chunk *chunk, int bit_off,
+ 					PCPU_BITMAP_BLOCK_BITS,
+ 					s_off + bits);
+ 
+-	if (s_off >= s_block->contig_hint_start &&
+-	    s_off < s_block->contig_hint_start + s_block->contig_hint) {
++	if (pcpu_region_overlap(s_block->contig_hint_start,
++				s_block->contig_hint_start +
++				s_block->contig_hint,
++				s_off,
++				s_off + bits)) {
+ 		/* block contig hint is broken - scan to fix it */
+ 		pcpu_block_refresh_hint(chunk, s_index);
+ 	} else {
+@@ -764,8 +785,10 @@ static void pcpu_block_update_hint_alloc(struct pcpu_chunk *chunk, int bit_off,
+ 	 * contig hint is broken.  Otherwise, it means a smaller space
+ 	 * was used and therefore the chunk contig hint is still correct.
+ 	 */
+-	if (bit_off >= chunk->contig_bits_start  &&
+-	    bit_off < chunk->contig_bits_start + chunk->contig_bits)
++	if (pcpu_region_overlap(chunk->contig_bits_start,
++				chunk->contig_bits_start + chunk->contig_bits,
++				bit_off,
++				bit_off + bits))
+ 		pcpu_chunk_refresh_hint(chunk);
+ }
+ 
+-- 
+2.17.1
+

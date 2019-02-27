@@ -1,0 +1,76 @@
+From 95181e5de6823af9558bb651fada9fa142cdcc50 Mon Sep 17 00:00:00 2001
+From: Dennis Zhou <dennis@kernel.org>
+Date: Tue, 26 Feb 2019 09:56:16 -0800
+Subject: [PATCH 10/12] percpu: make pcpu_block_md generic
+
+In reality, a chunk is just a block covering a larger number of bits.
+The hints themselves are one in the same. Rather than maintaining the
+hints separately, first introduce nr_bits to genericize
+pcpu_block_update() to correctly maintain block->right_free. The next
+patch will convert chunk hints to be managed as a pcpu_block_md.
+
+Signed-off-by: Dennis Zhou <dennis@kernel.org>
+---
+ mm/percpu-internal.h |  1 +
+ mm/percpu.c          | 20 +++++++++++++-------
+ 2 files changed, 14 insertions(+), 7 deletions(-)
+
+diff --git a/mm/percpu-internal.h b/mm/percpu-internal.h
+index ec58b244545d..119bd1119aa7 100644
+--- a/mm/percpu-internal.h
++++ b/mm/percpu-internal.h
+@@ -28,6 +28,7 @@ struct pcpu_block_md {
+ 	int                     right_free;     /* size of free space along
+ 						   the right side of the block */
+ 	int                     first_free;     /* block position of first free */
++	int			nr_bits;	/* total bits responsible for */
+ };
+ 
+ struct pcpu_chunk {
+diff --git a/mm/percpu.c b/mm/percpu.c
+index e51c151ed692..7cdf14c242de 100644
+--- a/mm/percpu.c
++++ b/mm/percpu.c
+@@ -658,7 +658,7 @@ static void pcpu_block_update(struct pcpu_block_md *block, int start, int end)
+ 	if (start == 0)
+ 		block->left_free = contig;
+ 
+-	if (end == PCPU_BITMAP_BLOCK_BITS)
++	if (end == block->nr_bits)
+ 		block->right_free = contig;
+ 
+ 	if (contig > block->contig_hint) {
+@@ -1271,18 +1271,24 @@ static void pcpu_free_area(struct pcpu_chunk *chunk, int off)
+ 	pcpu_chunk_relocate(chunk, oslot);
+ }
+ 
++static void pcpu_init_md_block(struct pcpu_block_md *block, int nr_bits)
++{
++	block->scan_hint = 0;
++	block->contig_hint = nr_bits;
++	block->left_free = nr_bits;
++	block->right_free = nr_bits;
++	block->first_free = 0;
++	block->nr_bits = nr_bits;
++}
++
+ static void pcpu_init_md_blocks(struct pcpu_chunk *chunk)
+ {
+ 	struct pcpu_block_md *md_block;
+ 
+ 	for (md_block = chunk->md_blocks;
+ 	     md_block != chunk->md_blocks + pcpu_chunk_nr_blocks(chunk);
+-	     md_block++) {
+-		md_block->scan_hint = 0;
+-		md_block->contig_hint = PCPU_BITMAP_BLOCK_BITS;
+-		md_block->left_free = PCPU_BITMAP_BLOCK_BITS;
+-		md_block->right_free = PCPU_BITMAP_BLOCK_BITS;
+-	}
++	     md_block++)
++		pcpu_init_md_block(md_block, PCPU_BITMAP_BLOCK_BITS);
+ }
+ 
+ /**
+-- 
+2.17.1
+
