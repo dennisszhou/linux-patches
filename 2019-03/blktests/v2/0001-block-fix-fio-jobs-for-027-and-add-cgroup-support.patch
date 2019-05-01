@@ -1,0 +1,69 @@
+From 42d21366d66689778496f330410137f4e43c3311 Mon Sep 17 00:00:00 2001
+From: Dennis Zhou <dennis@kernel.org>
+Date: Fri, 29 Mar 2019 14:46:01 -0700
+Subject: [PATCH v2] block: fix fio jobs for 027 and add cgroup support
+
+Previously, the test was broken as "$fio_jobs" was considered as a
+string instead of additional parameters. This is fixed here.
+
+Second, there was an issue with earlier kernels when request lists
+existed such that request_queues were never being cleaned up because
+non-root blkgs took a reference on the queue. However, blkgs were being
+cleaned up after the last reference to the request_queue was put back.
+This creates a blktest cgroup for the fio jobs to utilize and should be
+useful for catching this scenario in the future.
+
+Signed-off-by: Dennis Zhou <dennis@kernel.org>
+---
+ tests/block/027 | 17 ++++++++++++++---
+ 1 file changed, 14 insertions(+), 3 deletions(-)
+
+diff --git a/tests/block/027 b/tests/block/027
+index b480016..ae464dd 100755
+--- a/tests/block/027
++++ b/tests/block/027
+@@ -26,6 +26,13 @@ scsi_debug_stress_remove() {
+ 		return
+ 	fi
+ 
++	_init_cgroup2
++
++	# setup cgroups
++	echo "+io" > "/sys/fs/cgroup/cgroup.subtree_control"
++	echo "+io" > "$CGROUP2_DIR/cgroup.subtree_control"
++	mkdir -p "$CGROUP2_DIR/${TEST_NAME}"
++
+ 	# set higher aio limit
+ 	echo 524288 > /proc/sys/fs/aio-max-nr
+ 
+@@ -45,13 +52,13 @@ scsi_debug_stress_remove() {
+ 		((cnt++))
+ 	done
+ 
+-	local num_jobs=4 runtime=21
++	local num_jobs=4 runtime=12
+ 	fio --rw=randread --size=128G --direct=1 --ioengine=libaio \
+ 		--iodepth=2048 --numjobs=$num_jobs --bs=4k \
+ 		--group_reporting=1 --group_reporting=1 --runtime=$runtime \
+-		--loops=10000 "$fio_jobs" > "$FULL" 2>&1 &
++		--loops=10000 --cgroup=blktests/${TEST_NAME} $fio_jobs > "$FULL" 2>&1 &
+ 
+-	sleep 7
++	sleep 6
+ 	local device_path
+ 	for dev in "${SCSI_DEBUG_DEVICES[@]}"; do
+ 		# shutdown devices in progress
+@@ -61,6 +68,10 @@ scsi_debug_stress_remove() {
+ 
+ 	wait
+ 
++	sleep 5
++
++	_exit_cgroup2
++
+ 	_exit_scsi_debug
+ }
+ 
+-- 
+2.17.1
+
