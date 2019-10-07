@@ -1,7 +1,7 @@
-From 76a75305ba345635d234524eb0881ebbb99f6630 Mon Sep 17 00:00:00 2001
-Message-Id: <76a75305ba345635d234524eb0881ebbb99f6630.1570470115.git.dennis@kernel.org>
-In-Reply-To: <cover.1570470115.git.dennis@kernel.org>
-References: <cover.1570470115.git.dennis@kernel.org>
+From 7eed2e0ebdc4cc4a7e31c6fa7a180f10158fba0f Mon Sep 17 00:00:00 2001
+Message-Id: <7eed2e0ebdc4cc4a7e31c6fa7a180f10158fba0f.1570479299.git.dennis@kernel.org>
+In-Reply-To: <cover.1570479299.git.dennis@kernel.org>
+References: <cover.1570479299.git.dennis@kernel.org>
 From: Dennis Zhou <dennis@kernel.org>
 Date: Tue, 11 Jun 2019 18:26:09 -0700
 Subject: [PATCH 12/19] btrfs: limit max discard size for async discard
@@ -41,7 +41,7 @@ index acaf56f63b1c..898dd92dbf8f 100644
  #define BTRFS_DISCARD_RESET_CURSOR	(1UL << 0)
  #define BTRFS_DISCARD_BITMAPS           (1UL << 1)
 diff --git a/fs/btrfs/free-space-cache.c b/fs/btrfs/free-space-cache.c
-index c0fc8b5c958a..624b54d2c4ab 100644
+index 54f3c8325858..ce33803a45b2 100644
 --- a/fs/btrfs/free-space-cache.c
 +++ b/fs/btrfs/free-space-cache.c
 @@ -3399,19 +3399,39 @@ static int trim_no_bitmap(struct btrfs_block_group_cache *block_group,

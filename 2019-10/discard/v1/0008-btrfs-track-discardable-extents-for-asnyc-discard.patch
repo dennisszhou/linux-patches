@@ -1,7 +1,7 @@
-From 133f78d4413d28622eb5ca2fd70f6ab69b3f73a9 Mon Sep 17 00:00:00 2001
-Message-Id: <133f78d4413d28622eb5ca2fd70f6ab69b3f73a9.1570470115.git.dennis@kernel.org>
-In-Reply-To: <cover.1570470115.git.dennis@kernel.org>
-References: <cover.1570470115.git.dennis@kernel.org>
+From 31c4f29228c76df72cc92112e397db648e9b9ab9 Mon Sep 17 00:00:00 2001
+Message-Id: <31c4f29228c76df72cc92112e397db648e9b9ab9.1570479299.git.dennis@kernel.org>
+In-Reply-To: <cover.1570479299.git.dennis@kernel.org>
+References: <cover.1570479299.git.dennis@kernel.org>
 From: Dennis Zhou <dennis@kernel.org>
 Date: Tue, 11 Jun 2019 17:16:05 -0700
 Subject: [PATCH 08/19] btrfs: track discardable extents for asnyc discard
@@ -86,7 +86,7 @@ index 22cfa7e401bb..85939d62521e 100644
 +
  #endif
 diff --git a/fs/btrfs/free-space-cache.c b/fs/btrfs/free-space-cache.c
-index dfb1a9130c96..ccdb32744eda 100644
+index 97b3074e83c0..6c2bebfd206f 100644
 --- a/fs/btrfs/free-space-cache.c
 +++ b/fs/btrfs/free-space-cache.c
 @@ -32,6 +32,9 @@ struct btrfs_trim_range {
@@ -158,7 +158,7 @@ index dfb1a9130c96..ccdb32744eda 100644
 +	if (start && test_bit(start - 1, info->bitmap))
 +		extent_delta++;
 +
-+	if (BITS_PER_BITMAP > end && test_bit(end, info->bitmap))
++	if (end < BITS_PER_BITMAP && test_bit(end, info->bitmap))
 +		extent_delta++;
 +
 +	info->bitmap_extents += extent_delta;
@@ -189,7 +189,7 @@ index dfb1a9130c96..ccdb32744eda 100644
 +	if (start && test_bit(start - 1, info->bitmap))
 +		extent_delta--;
 +
-+	if (BITS_PER_BITMAP > end && test_bit(end, info->bitmap))
++	if (end < BITS_PER_BITMAP && test_bit(end, info->bitmap))
 +		extent_delta--;
 +
 +	info->bitmap_extents += extent_delta;

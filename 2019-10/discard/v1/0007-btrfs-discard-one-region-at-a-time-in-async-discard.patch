@@ -1,7 +1,7 @@
-From 5a72b7e75d28805e1c23759a89d9a8d9dd1288ac Mon Sep 17 00:00:00 2001
-Message-Id: <5a72b7e75d28805e1c23759a89d9a8d9dd1288ac.1570470115.git.dennis@kernel.org>
-In-Reply-To: <cover.1570470115.git.dennis@kernel.org>
-References: <cover.1570470115.git.dennis@kernel.org>
+From 79b26926486575eb53825c1aad607e99028d8447 Mon Sep 17 00:00:00 2001
+Message-Id: <79b26926486575eb53825c1aad607e99028d8447.1570479299.git.dennis@kernel.org>
+In-Reply-To: <cover.1570479299.git.dennis@kernel.org>
+References: <cover.1570479299.git.dennis@kernel.org>
 From: Dennis Zhou <dennis@kernel.org>
 Date: Tue, 11 Jun 2019 18:21:10 -0700
 Subject: [PATCH 07/19] btrfs: discard one region at a time in async discard
@@ -208,7 +208,7 @@ index d69ee5f51b38..ff42e4abb01d 100644
  			trimmed += group_trimmed;
  			if (ret) {
 diff --git a/fs/btrfs/free-space-cache.c b/fs/btrfs/free-space-cache.c
-index 9d07b97a5579..dfb1a9130c96 100644
+index ed0e7ee4c78d..97b3074e83c0 100644
 --- a/fs/btrfs/free-space-cache.c
 +++ b/fs/btrfs/free-space-cache.c
 @@ -3267,7 +3267,8 @@ static int do_trimming(struct btrfs_block_group_cache *block_group,

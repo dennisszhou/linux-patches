@@ -1,7 +1,7 @@
-From 7c270c77d71e5ca3915be35c6f3af87d22331ff4 Mon Sep 17 00:00:00 2001
-Message-Id: <7c270c77d71e5ca3915be35c6f3af87d22331ff4.1570470115.git.dennis@kernel.org>
-In-Reply-To: <cover.1570470115.git.dennis@kernel.org>
-References: <cover.1570470115.git.dennis@kernel.org>
+From 87b5ef751e8febd481065e475bd53b276e670ff6 Mon Sep 17 00:00:00 2001
+Message-Id: <87b5ef751e8febd481065e475bd53b276e670ff6.1570479299.git.dennis@kernel.org>
+In-Reply-To: <cover.1570479299.git.dennis@kernel.org>
+References: <cover.1570479299.git.dennis@kernel.org>
 From: Dennis Zhou <dennis@kernel.org>
 Date: Wed, 19 Jun 2019 11:34:18 -0700
 Subject: [PATCH 13/19] btrfs: have multiple discard lists
@@ -178,7 +178,7 @@ index 898dd92dbf8f..1daa8da4a1b5 100644
  
  void btrfs_discard_cancel_work(struct btrfs_discard_ctl *discard_ctl,
 diff --git a/fs/btrfs/free-space-cache.c b/fs/btrfs/free-space-cache.c
-index 624b54d2c4ab..3afbcc292fad 100644
+index ce33803a45b2..ed35dc090df6 100644
 --- a/fs/btrfs/free-space-cache.c
 +++ b/fs/btrfs/free-space-cache.c
 @@ -2471,6 +2471,7 @@ int __btrfs_add_free_space(struct btrfs_fs_info *fs_info,
@@ -196,8 +196,8 @@ index 624b54d2c4ab..3afbcc292fad 100644
 -			if (bytes > BTRFS_DISCARD_MAX_SIZE) {
 +			/*
 +			 * Let bytes = BTRFS_MAX_DISCARD_SIZE + X.
-+			 * If X < BTRFS_DISCARD_MIN_FILTER, we won't trim X when we
-+			 * come back around.  So trim it now.
++			 * If X < BTRFS_DISCARD_MIN_FILTER, we won't trim X when
++			 * we come back around.  So trim it now.
 +			 */
 +			if (bytes > (BTRFS_DISCARD_MAX_SIZE +
 +				     BTRFS_DISCARD_MIN_FILTER)) {
@@ -251,8 +251,8 @@ index 624b54d2c4ab..3afbcc292fad 100644
 -		if (async && bytes > BTRFS_DISCARD_MAX_SIZE)
 +		/*
 +		 * Let bytes = BTRFS_MAX_DISCARD_SIZE + X.
-+		 * If X < BTRFS_DISCARD_MIN_FILTER, we won't trim X when we
-+		 * come back around.  So trim it now.
++		 * If X < BTRFS_DISCARD_MIN_FILTER, we won't trim X when we come
++		 * back around.  So trim it now.
 +		 */
 +		if (async && bytes > (BTRFS_DISCARD_MAX_SIZE +
 +				      BTRFS_DISCARD_MIN_FILTER))

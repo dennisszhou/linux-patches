@@ -1,7 +1,7 @@
-From fa5c7ac4b7452f62c1825da845e8d75cb4a38957 Mon Sep 17 00:00:00 2001
-Message-Id: <fa5c7ac4b7452f62c1825da845e8d75cb4a38957.1570470115.git.dennis@kernel.org>
-In-Reply-To: <cover.1570470115.git.dennis@kernel.org>
-References: <cover.1570470115.git.dennis@kernel.org>
+From a1d52aa93f0e9e36fcf89979664a55bccf1a0459 Mon Sep 17 00:00:00 2001
+Message-Id: <a1d52aa93f0e9e36fcf89979664a55bccf1a0459.1570479299.git.dennis@kernel.org>
+In-Reply-To: <cover.1570479299.git.dennis@kernel.org>
+References: <cover.1570479299.git.dennis@kernel.org>
 From: Dennis Zhou <dennis@kernel.org>
 Date: Fri, 14 Jun 2019 11:20:43 -0700
 Subject: [PATCH 06/19] btrfs: handle empty block_group removal
@@ -304,7 +304,7 @@ index 6d7805bb0eb7..55f79b624943 100644
  		btrfs_discard_schedule_work(discard_ctl, false);
  }
 diff --git a/fs/btrfs/free-space-cache.c b/fs/btrfs/free-space-cache.c
-index 01ee0fff199a..9d07b97a5579 100644
+index 54ff1bc97777..ed0e7ee4c78d 100644
 --- a/fs/btrfs/free-space-cache.c
 +++ b/fs/btrfs/free-space-cache.c
 @@ -2653,6 +2653,31 @@ void btrfs_remove_free_space_cache(struct btrfs_block_group_cache *block_group)

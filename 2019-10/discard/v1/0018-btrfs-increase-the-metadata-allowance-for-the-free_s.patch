@@ -1,7 +1,7 @@
-From e030bf51946c27d3a374378d439ac2191aa198c3 Mon Sep 17 00:00:00 2001
-Message-Id: <e030bf51946c27d3a374378d439ac2191aa198c3.1570470115.git.dennis@kernel.org>
-In-Reply-To: <cover.1570470115.git.dennis@kernel.org>
-References: <cover.1570470115.git.dennis@kernel.org>
+From 4b171367793ccdcd722e787e5ae0f4f547ed5c43 Mon Sep 17 00:00:00 2001
+Message-Id: <4b171367793ccdcd722e787e5ae0f4f547ed5c43.1570479299.git.dennis@kernel.org>
+In-Reply-To: <cover.1570479299.git.dennis@kernel.org>
+References: <cover.1570479299.git.dennis@kernel.org>
 From: Dennis Zhou <dennis@kernel.org>
 Date: Mon, 30 Sep 2019 14:43:58 -0700
 Subject: [PATCH 18/19] btrfs: increase the metadata allowance for the
@@ -23,7 +23,7 @@ Signed-off-by: Dennis Zhou <dennis@kernel.org>
  1 file changed, 11 insertions(+), 15 deletions(-)
 
 diff --git a/fs/btrfs/free-space-cache.c b/fs/btrfs/free-space-cache.c
-index 9d9dcbae7ac7..10071818e04e 100644
+index 480119016c0d..a0941d281a63 100644
 --- a/fs/btrfs/free-space-cache.c
 +++ b/fs/btrfs/free-space-cache.c
 @@ -24,7 +24,8 @@

@@ -1,7 +1,7 @@
-From 129186da8c54eda8f5893af4b8a8df17da71849b Mon Sep 17 00:00:00 2001
-Message-Id: <129186da8c54eda8f5893af4b8a8df17da71849b.1570470115.git.dennis@kernel.org>
-In-Reply-To: <cover.1570470115.git.dennis@kernel.org>
-References: <cover.1570470115.git.dennis@kernel.org>
+From 60e557d71cb58574edbc2c429534fbfefd55df48 Mon Sep 17 00:00:00 2001
+Message-Id: <60e557d71cb58574edbc2c429534fbfefd55df48.1570479299.git.dennis@kernel.org>
+In-Reply-To: <cover.1570479299.git.dennis@kernel.org>
+References: <cover.1570479299.git.dennis@kernel.org>
 From: Dennis Zhou <dennis@kernel.org>
 Date: Wed, 12 Jun 2019 08:42:14 -0700
 Subject: [PATCH 16/19] btrfs: keep track of discard reuse stats
@@ -59,7 +59,7 @@ index d99ba31e6f3b..f0088ca19d28 100644
  
  void btrfs_discard_cleanup(struct btrfs_fs_info *fs_info)
 diff --git a/fs/btrfs/free-space-cache.c b/fs/btrfs/free-space-cache.c
-index 3afbcc292fad..9d9dcbae7ac7 100644
+index ed35dc090df6..480119016c0d 100644
 --- a/fs/btrfs/free-space-cache.c
 +++ b/fs/btrfs/free-space-cache.c
 @@ -2773,6 +2773,8 @@ u64 btrfs_find_space_for_alloc(struct btrfs_block_group_cache *block_group,
