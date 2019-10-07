@@ -1,0 +1,82 @@
+From 8bac70ffc2c3e68621b5b242ed93ecc28be5b221 Mon Sep 17 00:00:00 2001
+Message-Id: <8bac70ffc2c3e68621b5b242ed93ecc28be5b221.1570470115.git.dennis@kernel.org>
+In-Reply-To: <cover.1570470115.git.dennis@kernel.org>
+References: <cover.1570470115.git.dennis@kernel.org>
+From: Dennis Zhou <dennis@kernel.org>
+Date: Tue, 11 Jun 2019 17:59:23 -0700
+Subject: [PATCH 14/19] btrfs: only keep track of data extents for async
+ discard
+
+As mentioned earlier, discarding data can be done either by issuing an
+explicit discard or implicitly by reusing the LBA. Metadata chunks see
+much more frequent reuse due to well it being metadata. So instead of
+explicitly discarding metadata blocks, just leave them be and let the
+latter implicit discarding be done for them.
+
+Signed-off-by: Dennis Zhou <dennis@kernel.org>
+---
+ fs/btrfs/block-group.h | 6 ++++++
+ fs/btrfs/discard.c     | 8 +++++++-
+ fs/btrfs/discard.h     | 3 ++-
+ 3 files changed, 15 insertions(+), 2 deletions(-)
+
+diff --git a/fs/btrfs/block-group.h b/fs/btrfs/block-group.h
+index b59e6a8ed73d..7739099e974a 100644
+--- a/fs/btrfs/block-group.h
++++ b/fs/btrfs/block-group.h
+@@ -169,6 +169,12 @@ u64 btrfs_block_group_end(struct btrfs_block_group_cache *cache)
+ 	return (cache->key.objectid + cache->key.offset);
+ }
+ 
++static inline
++bool btrfs_is_block_group_data(struct btrfs_block_group_cache *cache)
++{
++	return (cache->flags & BTRFS_BLOCK_GROUP_DATA);
++}
++
+ #ifdef CONFIG_BTRFS_DEBUG
+ static inline int btrfs_should_fragment_free_space(
+ 		struct btrfs_block_group_cache *block_group)
+diff --git a/fs/btrfs/discard.c b/fs/btrfs/discard.c
+index 296cbffc5957..0e4d5a22c661 100644
+--- a/fs/btrfs/discard.c
++++ b/fs/btrfs/discard.c
+@@ -50,6 +50,9 @@ static void __btrfs_add_to_discard_list(struct btrfs_discard_ctl *discard_ctl,
+ void btrfs_add_to_discard_list(struct btrfs_discard_ctl *discard_ctl,
+ 			       struct btrfs_block_group_cache *cache)
+ {
++	if (!btrfs_is_block_group_data(cache))
++		return;
++
+ 	spin_lock(&discard_ctl->lock);
+ 
+ 	__btrfs_add_to_discard_list(discard_ctl, cache);
+@@ -139,7 +142,10 @@ peek_discard_list(struct btrfs_discard_ctl *discard_ctl, int *discard_index)
+ 		*discard_index = cache->discard_index;
+ 		if (cache->discard_index == 0 &&
+ 		    cache->free_space_ctl->free_space != cache->key.offset) {
+-			__btrfs_add_to_discard_list(discard_ctl, cache);
++			if (btrfs_is_block_group_data(cache))
++				__btrfs_add_to_discard_list(discard_ctl, cache);
++			else
++				list_del_init(&cache->discard_list);
+ 			goto again;
+ 		}
+ 		if (btrfs_discard_reset_cursor(cache)) {
+diff --git a/fs/btrfs/discard.h b/fs/btrfs/discard.h
+index 1daa8da4a1b5..552daa7251df 100644
+--- a/fs/btrfs/discard.h
++++ b/fs/btrfs/discard.h
+@@ -90,7 +90,8 @@ void btrfs_discard_update_discardable(struct btrfs_block_group_cache *cache,
+ 	s32 extents_delta;
+ 	s64 bytes_delta;
+ 
+-	if (!cache || !btrfs_test_opt(cache->fs_info, DISCARD_ASYNC))
++	if (!cache || !btrfs_test_opt(cache->fs_info, DISCARD_ASYNC) ||
++	    !btrfs_is_block_group_data(cache))
+ 		return;
+ 
+ 	discard_ctl = &cache->fs_info->discard_ctl;
+-- 
+2.17.1
+

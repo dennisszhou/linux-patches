@@ -1,0 +1,78 @@
+From b3fe1109dc3a7c3dd1d4348fac0f01c6e1a9de74 Mon Sep 17 00:00:00 2001
+Message-Id: <b3fe1109dc3a7c3dd1d4348fac0f01c6e1a9de74.1570470115.git.dennis@kernel.org>
+In-Reply-To: <cover.1570470115.git.dennis@kernel.org>
+References: <cover.1570470115.git.dennis@kernel.org>
+From: Dennis Zhou <dennis@kernel.org>
+Date: Tue, 18 Jun 2019 12:51:43 -0700
+Subject: [PATCH 15/19] btrfs: load block_groups into discard_list on mount
+
+Async discard doesn't remember the discard state of a block_group when
+unmounting or when we crash. So, any block_group that is not fully used
+may have undiscarded regions. However, free space caches are read in on
+demand. Let the discard worker read in the free space cache so we can
+proceed with discarding rather than wait for the block_group to be used.
+This prevents us from indefinitely deferring discards until that
+particular block_group is reused.
+
+Signed-off-by: Dennis Zhou <dennis@kernel.org>
+---
+ fs/btrfs/block-group.c |  2 ++
+ fs/btrfs/discard.c     | 15 +++++++++++++++
+ 2 files changed, 17 insertions(+)
+
+diff --git a/fs/btrfs/block-group.c b/fs/btrfs/block-group.c
+index 73e5a9384491..684959c96c3f 100644
+--- a/fs/btrfs/block-group.c
++++ b/fs/btrfs/block-group.c
+@@ -1859,6 +1859,8 @@ int btrfs_read_block_groups(struct btrfs_fs_info *info)
+ 						&info->discard_ctl, cache);
+ 			else
+ 				btrfs_mark_bg_unused(cache);
++		} else if (btrfs_test_opt(info, DISCARD_ASYNC)) {
++			btrfs_add_to_discard_list(&info->discard_ctl, cache);
+ 		}
+ 	}
+ 
+diff --git a/fs/btrfs/discard.c b/fs/btrfs/discard.c
+index 0e4d5a22c661..d99ba31e6f3b 100644
+--- a/fs/btrfs/discard.c
++++ b/fs/btrfs/discard.c
+@@ -246,6 +246,7 @@ static void btrfs_discard_workfn(struct work_struct *work)
+ 	int discard_index = 0;
+ 	u64 trimmed = 0;
+ 	u64 minlen = 0;
++	int ret;
+ 
+ 	discard_ctl = container_of(work, struct btrfs_discard_ctl, work.work);
+ 
+@@ -254,6 +255,19 @@ static void btrfs_discard_workfn(struct work_struct *work)
+ 	if (!cache || !btrfs_run_discard_work(discard_ctl))
+ 		return;
+ 
++	if (!btrfs_block_group_cache_done(cache)) {
++		ret = btrfs_cache_block_group(cache, 0);
++		if (ret) {
++			remove_from_discard_list(discard_ctl, cache);
++			goto out;
++		}
++		ret = btrfs_wait_block_group_cache_done(cache);
++		if (ret) {
++			remove_from_discard_list(discard_ctl, cache);
++			goto out;
++		}
++	}
++
+ 	minlen = discard_minlen[discard_index];
+ 
+ 	if (btrfs_discard_bitmaps(cache)) {
+@@ -291,6 +305,7 @@ static void btrfs_discard_workfn(struct work_struct *work)
+ 		}
+ 	}
+ 
++out:
+ 	spin_lock(&discard_ctl->lock);
+ 	discard_ctl->cache = NULL;
+ 	spin_unlock(&discard_ctl->lock);
+-- 
+2.17.1
+

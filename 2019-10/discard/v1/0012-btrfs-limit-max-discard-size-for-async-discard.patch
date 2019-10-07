@@ -1,0 +1,111 @@
+From 76a75305ba345635d234524eb0881ebbb99f6630 Mon Sep 17 00:00:00 2001
+Message-Id: <76a75305ba345635d234524eb0881ebbb99f6630.1570470115.git.dennis@kernel.org>
+In-Reply-To: <cover.1570470115.git.dennis@kernel.org>
+References: <cover.1570470115.git.dennis@kernel.org>
+From: Dennis Zhou <dennis@kernel.org>
+Date: Tue, 11 Jun 2019 18:26:09 -0700
+Subject: [PATCH 12/19] btrfs: limit max discard size for async discard
+
+Throttle the maximum size of a discard so that we can provide an upper
+bound for the rate of async discard. While the block layer is able to
+split discards into the appropriate sized discards, we want to be able
+to account more accurately the rate at which we are consuming ncq slots
+as well as limit the upper bound of work for a discard.
+
+Signed-off-by: Dennis Zhou <dennis@kernel.org>
+---
+ fs/btrfs/discard.h          |  4 ++++
+ fs/btrfs/free-space-cache.c | 47 +++++++++++++++++++++++++++----------
+ 2 files changed, 39 insertions(+), 12 deletions(-)
+
+diff --git a/fs/btrfs/discard.h b/fs/btrfs/discard.h
+index acaf56f63b1c..898dd92dbf8f 100644
+--- a/fs/btrfs/discard.h
++++ b/fs/btrfs/discard.h
+@@ -8,6 +8,7 @@
+ 
+ #include <linux/kernel.h>
+ #include <linux/jiffies.h>
++#include <linux/sizes.h>
+ #include <linux/time.h>
+ #include <linux/workqueue.h>
+ 
+@@ -15,6 +16,9 @@
+ #include "block-group.h"
+ #include "free-space-cache.h"
+ 
++/* discard size limits */
++#define BTRFS_DISCARD_MAX_SIZE		(SZ_64M)
++
+ /* discard flags */
+ #define BTRFS_DISCARD_RESET_CURSOR	(1UL << 0)
+ #define BTRFS_DISCARD_BITMAPS           (1UL << 1)
+diff --git a/fs/btrfs/free-space-cache.c b/fs/btrfs/free-space-cache.c
+index c0fc8b5c958a..624b54d2c4ab 100644
+--- a/fs/btrfs/free-space-cache.c
++++ b/fs/btrfs/free-space-cache.c
+@@ -3399,19 +3399,39 @@ static int trim_no_bitmap(struct btrfs_block_group_cache *block_group,
+ 		if (entry->offset >= end)
+ 			goto out_unlock;
+ 
+-		extent_start = entry->offset;
+-		extent_bytes = entry->bytes;
+-		extent_flags = entry->flags;
+-		start = max(start, extent_start);
+-		bytes = min(extent_start + extent_bytes, end) - start;
+-		if (bytes < minlen) {
+-			spin_unlock(&ctl->tree_lock);
+-			mutex_unlock(&ctl->cache_writeout_mutex);
+-			goto next;
+-		}
++		if (async) {
++			start = extent_start = entry->offset;
++			bytes = extent_bytes = entry->bytes;
++			extent_flags = entry->flags;
++			if (bytes < minlen) {
++				spin_unlock(&ctl->tree_lock);
++				mutex_unlock(&ctl->cache_writeout_mutex);
++				goto next;
++			}
++			unlink_free_space(ctl, entry);
++			if (bytes > BTRFS_DISCARD_MAX_SIZE) {
++				bytes = extent_bytes = BTRFS_DISCARD_MAX_SIZE;
++				entry->offset += BTRFS_DISCARD_MAX_SIZE;
++				entry->bytes -= BTRFS_DISCARD_MAX_SIZE;
++				link_free_space(ctl, entry);
++			} else {
++				kmem_cache_free(btrfs_free_space_cachep, entry);
++			}
++		} else {
++			extent_start = entry->offset;
++			extent_bytes = entry->bytes;
++			extent_flags = entry->flags;
++			start = max(start, extent_start);
++			bytes = min(extent_start + extent_bytes, end) - start;
++			if (bytes < minlen) {
++				spin_unlock(&ctl->tree_lock);
++				mutex_unlock(&ctl->cache_writeout_mutex);
++				goto next;
++			}
+ 
+-		unlink_free_space(ctl, entry);
+-		kmem_cache_free(btrfs_free_space_cachep, entry);
++			unlink_free_space(ctl, entry);
++			kmem_cache_free(btrfs_free_space_cachep, entry);
++		}
+ 
+ 		spin_unlock(&ctl->tree_lock);
+ 		trim_entry.start = extent_start;
+@@ -3567,6 +3587,9 @@ static int trim_bitmaps(struct btrfs_block_group_cache *block_group,
+ 			goto next;
+ 		}
+ 
++		if (async && bytes > BTRFS_DISCARD_MAX_SIZE)
++			bytes = BTRFS_DISCARD_MAX_SIZE;
++
+ 		bitmap_clear_bits(ctl, entry, start, bytes);
+ 		if (entry->bytes == 0)
+ 			free_bitmap(ctl, entry);
+-- 
+2.17.1
+
