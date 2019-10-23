@@ -1,0 +1,239 @@
+From 3801afee5fe1a6a81e04e27692e2ded4c5df64ec Mon Sep 17 00:00:00 2001
+Message-Id: <3801afee5fe1a6a81e04e27692e2ded4c5df64ec.1571865774.git.dennis@kernel.org>
+In-Reply-To: <cover.1571865774.git.dennis@kernel.org>
+References: <cover.1571865774.git.dennis@kernel.org>
+From: Dennis Zhou <dennis@kernel.org>
+Date: Mon, 30 Sep 2019 13:58:41 -0700
+Subject: [PATCH 12/22] btrfs: keep track of discardable_bytes
+
+Keep track of this metric so that we can understand how ahead or behind
+we are in discarding rate.
+
+Signed-off-by: Dennis Zhou <dennis@kernel.org>
+---
+ fs/btrfs/ctree.h            |  1 +
+ fs/btrfs/discard.c          | 10 +++++++++
+ fs/btrfs/free-space-cache.c | 41 +++++++++++++++++++++++++++++--------
+ fs/btrfs/free-space-cache.h |  1 +
+ fs/btrfs/sysfs.c            | 12 +++++++++++
+ 5 files changed, 56 insertions(+), 9 deletions(-)
+
+diff --git a/fs/btrfs/ctree.h b/fs/btrfs/ctree.h
+index 2cf1dae512aa..43aa355f5c37 100644
+--- a/fs/btrfs/ctree.h
++++ b/fs/btrfs/ctree.h
+@@ -466,6 +466,7 @@ struct btrfs_discard_ctl {
+ 	struct btrfs_block_group_cache *cache;
+ 	struct list_head discard_list[BTRFS_NR_DISCARD_LISTS];
+ 	atomic_t discardable_extents;
++	atomic64_t discardable_bytes;
+ };
+ 
+ /* delayed seq elem */
+diff --git a/fs/btrfs/discard.c b/fs/btrfs/discard.c
+index 128ba18f2e5e..9c561a561578 100644
+--- a/fs/btrfs/discard.c
++++ b/fs/btrfs/discard.c
+@@ -351,6 +351,7 @@ void btrfs_discard_update_discardable(struct btrfs_block_group_cache *cache,
+ {
+ 	struct btrfs_discard_ctl *discard_ctl;
+ 	s32 extents_delta;
++	s64 bytes_delta;
+ 
+ 	if (!cache || !btrfs_test_opt(cache->fs_info, DISCARD_ASYNC))
+ 		return;
+@@ -364,6 +365,14 @@ void btrfs_discard_update_discardable(struct btrfs_block_group_cache *cache,
+ 		ctl->discardable_extents[BTRFS_STAT_PREV] =
+ 			ctl->discardable_extents[BTRFS_STAT_CURR];
+ 	}
++
++	bytes_delta = (ctl->discardable_bytes[BTRFS_STAT_CURR] -
++		       ctl->discardable_bytes[BTRFS_STAT_PREV]);
++	if (bytes_delta) {
++		atomic64_add(bytes_delta, &discard_ctl->discardable_bytes);
++		ctl->discardable_bytes[BTRFS_STAT_PREV] =
++			ctl->discardable_bytes[BTRFS_STAT_CURR];
++	}
+ }
+ 
+ /**
+@@ -453,6 +462,7 @@ void btrfs_discard_init(struct btrfs_fs_info *fs_info)
+ 		 INIT_LIST_HEAD(&discard_ctl->discard_list[i]);
+ 
+ 	atomic_set(&discard_ctl->discardable_extents, 0);
++	atomic64_set(&discard_ctl->discardable_bytes, 0);
+ }
+ 
+ void btrfs_discard_cleanup(struct btrfs_fs_info *fs_info)
+diff --git a/fs/btrfs/free-space-cache.c b/fs/btrfs/free-space-cache.c
+index 3a965876aae3..8d4ffd50aee6 100644
+--- a/fs/btrfs/free-space-cache.c
++++ b/fs/btrfs/free-space-cache.c
+@@ -815,9 +815,11 @@ static int __load_free_space_cache(struct btrfs_root *root, struct inode *inode,
+ 		if (ret)
+ 			goto free_cache;
+ 		e->bitmap_extents = count_bitmap_extents(ctl, e);
+-		if (!btrfs_free_space_trimmed(e))
++		if (!btrfs_free_space_trimmed(e)) {
+ 			ctl->discardable_extents[BTRFS_STAT_CURR] +=
+ 				e->bitmap_extents;
++			ctl->discardable_bytes[BTRFS_STAT_CURR] += e->bytes;
++		}
+ 	}
+ 
+ 	io_ctl_drop_pages(&io_ctl);
+@@ -1640,8 +1642,10 @@ __unlink_free_space(struct btrfs_free_space_ctl *ctl,
+ 	rb_erase(&info->offset_index, &ctl->free_space_offset);
+ 	ctl->free_extents--;
+ 
+-	if (!info->bitmap && !btrfs_free_space_trimmed(info))
++	if (!info->bitmap && !btrfs_free_space_trimmed(info)) {
+ 		ctl->discardable_extents[BTRFS_STAT_CURR]--;
++		ctl->discardable_bytes[BTRFS_STAT_CURR] -= info->bytes;
++	}
+ }
+ 
+ static void unlink_free_space(struct btrfs_free_space_ctl *ctl,
+@@ -1662,8 +1666,10 @@ static int link_free_space(struct btrfs_free_space_ctl *ctl,
+ 	if (ret)
+ 		return ret;
+ 
+-	if (!info->bitmap && !btrfs_free_space_trimmed(info))
++	if (!info->bitmap && !btrfs_free_space_trimmed(info)) {
+ 		ctl->discardable_extents[BTRFS_STAT_CURR]++;
++		ctl->discardable_bytes[BTRFS_STAT_CURR] += info->bytes;
++	}
+ 
+ 	ctl->free_space += info->bytes;
+ 	ctl->free_extents++;
+@@ -1742,8 +1748,10 @@ static inline void __bitmap_clear_bits(struct btrfs_free_space_ctl *ctl,
+ 		extent_delta++;
+ 
+ 	info->bitmap_extents += extent_delta;
+-	if (!btrfs_free_space_trimmed(info))
++	if (!btrfs_free_space_trimmed(info)) {
+ 		ctl->discardable_extents[BTRFS_STAT_CURR] += extent_delta;
++		ctl->discardable_bytes[BTRFS_STAT_CURR] -= bytes;
++	}
+ }
+ 
+ static void bitmap_clear_bits(struct btrfs_free_space_ctl *ctl,
+@@ -1778,8 +1786,10 @@ static void bitmap_set_bits(struct btrfs_free_space_ctl *ctl,
+ 		extent_delta--;
+ 
+ 	info->bitmap_extents += extent_delta;
+-	if (!btrfs_free_space_trimmed(info))
++	if (!btrfs_free_space_trimmed(info)) {
+ 		ctl->discardable_extents[BTRFS_STAT_CURR] += extent_delta;
++		ctl->discardable_bytes[BTRFS_STAT_CURR] += bytes;
++	}
+ }
+ 
+ /*
+@@ -2050,9 +2060,11 @@ static u64 add_bytes_to_bitmap(struct btrfs_free_space_ctl *ctl,
+ 	 * whole bitmap untrimmed if at any point we add untrimmed regions.
+ 	 */
+ 	if (trim_state == BTRFS_TRIM_STATE_UNTRIMMED) {
+-		if (btrfs_free_space_trimmed(info))
++		if (btrfs_free_space_trimmed(info)) {
+ 			ctl->discardable_extents[BTRFS_STAT_CURR] +=
+ 				info->bitmap_extents;
++			ctl->discardable_bytes[BTRFS_STAT_CURR] += info->bytes;
++		}
+ 		info->trim_state = BTRFS_TRIM_STATE_UNTRIMMED;
+ 	}
+ 
+@@ -2688,15 +2700,21 @@ __btrfs_return_cluster_to_free_space(
+ 		bitmap = (entry->bitmap != NULL);
+ 		if (!bitmap) {
+ 			/* merging treats extents as if they were new */
+-			if (!btrfs_free_space_trimmed(entry))
++			if (!btrfs_free_space_trimmed(entry)) {
+ 				ctl->discardable_extents[BTRFS_STAT_CURR]--;
++				ctl->discardable_bytes[BTRFS_STAT_CURR] -=
++					entry->bytes;
++			}
+ 
+ 			try_merge_free_space(ctl, entry, false);
+ 			steal_from_bitmap(ctl, entry, false);
+ 
+ 			/* as we insert directly, update these statistics */
+-			if (!btrfs_free_space_trimmed(entry))
++			if (!btrfs_free_space_trimmed(entry)) {
+ 				ctl->discardable_extents[BTRFS_STAT_CURR]++;
++				ctl->discardable_bytes[BTRFS_STAT_CURR] +=
++					entry->bytes;
++			}
+ 		}
+ 		tree_insert_offset(&ctl->free_space_offset,
+ 				   entry->offset, &entry->offset_index, bitmap);
+@@ -2987,6 +3005,8 @@ u64 btrfs_alloc_from_cluster(struct btrfs_block_group_cache *block_group,
+ 	spin_lock(&ctl->tree_lock);
+ 
+ 	ctl->free_space -= bytes;
++	if (!entry->bitmap && !btrfs_free_space_trimmed(entry))
++		ctl->discardable_bytes[BTRFS_STAT_CURR] -= bytes;
+ 	if (entry->bytes == 0) {
+ 		ctl->free_extents--;
+ 		if (entry->bitmap) {
+@@ -3493,9 +3513,11 @@ static void reset_trimming_bitmap(struct btrfs_free_space_ctl *ctl, u64 offset)
+ 
+ 	entry = tree_search_offset(ctl, offset, 1, 0);
+ 	if (entry) {
+-		if (btrfs_free_space_trimmed(entry))
++		if (btrfs_free_space_trimmed(entry)) {
+ 			ctl->discardable_extents[BTRFS_STAT_CURR] +=
+ 				entry->bitmap_extents;
++			ctl->discardable_bytes[BTRFS_STAT_CURR] += entry->bytes;
++		}
+ 		entry->trim_state = BTRFS_TRIM_STATE_UNTRIMMED;
+ 	}
+ 
+@@ -3509,6 +3531,7 @@ static void end_trimming_bitmap(struct btrfs_free_space_ctl *ctl,
+ 		entry->trim_state = BTRFS_TRIM_STATE_TRIMMED;
+ 		ctl->discardable_extents[BTRFS_STAT_CURR] -=
+ 			entry->bitmap_extents;
++		ctl->discardable_bytes[BTRFS_STAT_CURR] -= entry->bytes;
+ 	}
+ }
+ 
+diff --git a/fs/btrfs/free-space-cache.h b/fs/btrfs/free-space-cache.h
+index 5e65899a2afa..1c0ec98da529 100644
+--- a/fs/btrfs/free-space-cache.h
++++ b/fs/btrfs/free-space-cache.h
+@@ -52,6 +52,7 @@ struct btrfs_free_space_ctl {
+ 	int unit;
+ 	u64 start;
+ 	s32 discardable_extents[BTRFS_STAT_NR_ENTRIES];
++	s64 discardable_bytes[BTRFS_STAT_NR_ENTRIES];
+ 	const struct btrfs_free_space_op *op;
+ 	void *private;
+ 	struct mutex cache_writeout_mutex;
+diff --git a/fs/btrfs/sysfs.c b/fs/btrfs/sysfs.c
+index 25f3d9062b78..9ebb1f1b1de6 100644
+--- a/fs/btrfs/sysfs.c
++++ b/fs/btrfs/sysfs.c
+@@ -330,8 +330,20 @@ static ssize_t btrfs_discardable_extents_show(struct kobject *kobj,
+ }
+ BTRFS_ATTR(discard, discardable_extents, btrfs_discardable_extents_show);
+ 
++static ssize_t btrfs_discardable_bytes_show(struct kobject *kobj,
++					    struct kobj_attribute *a,
++					    char *buf)
++{
++	struct btrfs_fs_info *fs_info = discard_to_fs_info(kobj);
++
++	return snprintf(buf, PAGE_SIZE, "%lld\n",
++			atomic64_read(&fs_info->discard_ctl.discardable_bytes));
++}
++BTRFS_ATTR(discard, discardable_bytes, btrfs_discardable_bytes_show);
++
+ static const struct attribute *discard_attrs[] = {
+ 	BTRFS_ATTR_PTR(discard, discardable_extents),
++	BTRFS_ATTR_PTR(discard, discardable_bytes),
+ 	NULL,
+ };
+ 
+-- 
+2.17.1
+

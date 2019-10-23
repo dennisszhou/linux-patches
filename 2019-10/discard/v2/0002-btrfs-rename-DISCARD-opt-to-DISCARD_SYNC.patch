@@ -1,0 +1,101 @@
+From 6c7c82ffdc8bcf0fbc1aa940542d8c0abc782629 Mon Sep 17 00:00:00 2001
+Message-Id: <6c7c82ffdc8bcf0fbc1aa940542d8c0abc782629.1571865774.git.dennis@kernel.org>
+In-Reply-To: <cover.1571865774.git.dennis@kernel.org>
+References: <cover.1571865774.git.dennis@kernel.org>
+From: Dennis Zhou <dennis@kernel.org>
+Date: Thu, 3 Oct 2019 12:44:32 -0700
+Subject: [PATCH 02/22] btrfs: rename DISCARD opt to DISCARD_SYNC
+
+This series introduces async discard which will use the flag
+DISCARD_ASYNC, so rename the original flag to DISCARD_SYNC as it is
+synchronously done in transaction commit.
+
+Signed-off-by: Dennis Zhou <dennis@kernel.org>
+Reviewed-by: Josef Bacik <josef@toxicpanda.com>
+Reviewed-by: Johannes Thumshirn <jthumshirn@suse.de>
+---
+ fs/btrfs/block-group.c | 2 +-
+ fs/btrfs/ctree.h       | 2 +-
+ fs/btrfs/extent-tree.c | 4 ++--
+ fs/btrfs/super.c       | 8 ++++----
+ 4 files changed, 8 insertions(+), 8 deletions(-)
+
+diff --git a/fs/btrfs/block-group.c b/fs/btrfs/block-group.c
+index bf7e3f23bba7..afe86028246a 100644
+--- a/fs/btrfs/block-group.c
++++ b/fs/btrfs/block-group.c
+@@ -1365,7 +1365,7 @@ void btrfs_delete_unused_bgs(struct btrfs_fs_info *fs_info)
+ 		spin_unlock(&space_info->lock);
+ 
+ 		/* DISCARD can flip during remount */
+-		trimming = btrfs_test_opt(fs_info, DISCARD);
++		trimming = btrfs_test_opt(fs_info, DISCARD_SYNC);
+ 
+ 		/* Implicit trim during transaction commit. */
+ 		if (trimming)
+diff --git a/fs/btrfs/ctree.h b/fs/btrfs/ctree.h
+index 19d669d12ca1..1877586576aa 100644
+--- a/fs/btrfs/ctree.h
++++ b/fs/btrfs/ctree.h
+@@ -1171,7 +1171,7 @@ static inline u32 BTRFS_MAX_XATTR_SIZE(const struct btrfs_fs_info *info)
+ #define BTRFS_MOUNT_FLUSHONCOMMIT       (1 << 7)
+ #define BTRFS_MOUNT_SSD_SPREAD		(1 << 8)
+ #define BTRFS_MOUNT_NOSSD		(1 << 9)
+-#define BTRFS_MOUNT_DISCARD		(1 << 10)
++#define BTRFS_MOUNT_DISCARD_SYNC	(1 << 10)
+ #define BTRFS_MOUNT_FORCE_COMPRESS      (1 << 11)
+ #define BTRFS_MOUNT_SPACE_CACHE		(1 << 12)
+ #define BTRFS_MOUNT_CLEAR_CACHE		(1 << 13)
+diff --git a/fs/btrfs/extent-tree.c b/fs/btrfs/extent-tree.c
+index 49cb26fa7c63..77a5904756c5 100644
+--- a/fs/btrfs/extent-tree.c
++++ b/fs/btrfs/extent-tree.c
+@@ -2903,7 +2903,7 @@ int btrfs_finish_extent_commit(struct btrfs_trans_handle *trans)
+ 			break;
+ 		}
+ 
+-		if (btrfs_test_opt(fs_info, DISCARD))
++		if (btrfs_test_opt(fs_info, DISCARD_SYNC))
+ 			ret = btrfs_discard_extent(fs_info, start,
+ 						   end + 1 - start, NULL);
+ 
+@@ -4146,7 +4146,7 @@ static int __btrfs_free_reserved_extent(struct btrfs_fs_info *fs_info,
+ 	if (pin)
+ 		pin_down_extent(cache, start, len, 1);
+ 	else {
+-		if (btrfs_test_opt(fs_info, DISCARD))
++		if (btrfs_test_opt(fs_info, DISCARD_SYNC))
+ 			ret = btrfs_discard_extent(fs_info, start, len, NULL);
+ 		btrfs_add_free_space(cache, start, len);
+ 		btrfs_free_reserved_bytes(cache, len, delalloc);
+diff --git a/fs/btrfs/super.c b/fs/btrfs/super.c
+index 1b151af25772..a02fece949cb 100644
+--- a/fs/btrfs/super.c
++++ b/fs/btrfs/super.c
+@@ -695,11 +695,11 @@ int btrfs_parse_options(struct btrfs_fs_info *info, char *options,
+ 				   info->metadata_ratio);
+ 			break;
+ 		case Opt_discard:
+-			btrfs_set_and_info(info, DISCARD,
+-					   "turning on discard");
++			btrfs_set_and_info(info, DISCARD_SYNC,
++					   "turning on sync discard");
+ 			break;
+ 		case Opt_nodiscard:
+-			btrfs_clear_and_info(info, DISCARD,
++			btrfs_clear_and_info(info, DISCARD_SYNC,
+ 					     "turning off discard");
+ 			break;
+ 		case Opt_space_cache:
+@@ -1322,7 +1322,7 @@ static int btrfs_show_options(struct seq_file *seq, struct dentry *dentry)
+ 		seq_puts(seq, ",nologreplay");
+ 	if (btrfs_test_opt(info, FLUSHONCOMMIT))
+ 		seq_puts(seq, ",flushoncommit");
+-	if (btrfs_test_opt(info, DISCARD))
++	if (btrfs_test_opt(info, DISCARD_SYNC))
+ 		seq_puts(seq, ",discard");
+ 	if (!(info->sb->s_flags & SB_POSIXACL))
+ 		seq_puts(seq, ",noacl");
+-- 
+2.17.1
+

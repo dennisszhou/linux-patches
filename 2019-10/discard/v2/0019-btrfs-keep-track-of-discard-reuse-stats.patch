@@ -1,0 +1,173 @@
+From ae43bf66f7747044182068524114c6680ae68854 Mon Sep 17 00:00:00 2001
+Message-Id: <ae43bf66f7747044182068524114c6680ae68854.1571865775.git.dennis@kernel.org>
+In-Reply-To: <cover.1571865774.git.dennis@kernel.org>
+References: <cover.1571865774.git.dennis@kernel.org>
+From: Dennis Zhou <dennis@kernel.org>
+Date: Wed, 12 Jun 2019 08:42:14 -0700
+Subject: [PATCH 19/22] btrfs: keep track of discard reuse stats
+
+Keep track of how much we are discarding and how often we are reusing
+with async discard.
+
+Signed-off-by: Dennis Zhou <dennis@kernel.org>
+Reviewed-by: Josef Bacik <josef@toxicpanda.com>
+---
+ fs/btrfs/ctree.h            |  3 +++
+ fs/btrfs/discard.c          |  7 +++++++
+ fs/btrfs/free-space-cache.c | 14 ++++++++++++++
+ fs/btrfs/sysfs.c            | 36 ++++++++++++++++++++++++++++++++++++
+ 4 files changed, 60 insertions(+)
+
+diff --git a/fs/btrfs/ctree.h b/fs/btrfs/ctree.h
+index 57cfc0e11c53..1bf016f8a3d8 100644
+--- a/fs/btrfs/ctree.h
++++ b/fs/btrfs/ctree.h
+@@ -472,6 +472,9 @@ struct btrfs_discard_ctl {
+ 	u32 delay;
+ 	u32 iops_limit;
+ 	u64 bps_limit;
++	u64 discard_extent_bytes;
++	u64 discard_bitmap_bytes;
++	atomic64_t discard_bytes_saved;
+ };
+ 
+ /* delayed seq elem */
+diff --git a/fs/btrfs/discard.c b/fs/btrfs/discard.c
+index be5a4439ceb0..f95e437d7629 100644
+--- a/fs/btrfs/discard.c
++++ b/fs/btrfs/discard.c
+@@ -406,11 +406,15 @@ static void btrfs_discard_workfn(struct work_struct *work)
+ 					       cache->discard_cursor,
+ 					       btrfs_block_group_end(cache),
+ 					       minlen, maxlen, true);
++		WRITE_ONCE(discard_ctl->discard_bitmap_bytes,
++			   discard_ctl->discard_bitmap_bytes + trimmed);
+ 	} else {
+ 		btrfs_trim_block_group_extents(cache, &trimmed,
+ 					       cache->discard_cursor,
+ 					       btrfs_block_group_end(cache),
+ 					       minlen, true);
++		WRITE_ONCE(discard_ctl->discard_extent_bytes,
++			   discard_ctl->discard_extent_bytes + trimmed);
+ 	}
+ 
+ 	discard_ctl->prev_discard = trimmed;
+@@ -614,6 +618,9 @@ void btrfs_discard_init(struct btrfs_fs_info *fs_info)
+ 	discard_ctl->delay = BTRFS_DISCARD_MAX_DELAY;
+ 	discard_ctl->iops_limit = BTRFS_DISCARD_MAX_IOPS;
+ 	discard_ctl->bps_limit = 0;
++	discard_ctl->discard_extent_bytes = 0;
++	discard_ctl->discard_bitmap_bytes = 0;
++	atomic64_set(&discard_ctl->discard_bytes_saved, 0);
+ }
+ 
+ void btrfs_discard_cleanup(struct btrfs_fs_info *fs_info)
+diff --git a/fs/btrfs/free-space-cache.c b/fs/btrfs/free-space-cache.c
+index dc632afe5f61..29d3e21ba7fd 100644
+--- a/fs/btrfs/free-space-cache.c
++++ b/fs/btrfs/free-space-cache.c
+@@ -2817,6 +2817,8 @@ u64 btrfs_find_space_for_alloc(struct btrfs_block_group_cache *block_group,
+ 			       u64 *max_extent_size)
+ {
+ 	struct btrfs_free_space_ctl *ctl = block_group->free_space_ctl;
++	struct btrfs_discard_ctl *discard_ctl =
++					&block_group->fs_info->discard_ctl;
+ 	struct btrfs_free_space *entry = NULL;
+ 	u64 bytes_search = bytes + empty_size;
+ 	u64 ret = 0;
+@@ -2833,6 +2835,10 @@ u64 btrfs_find_space_for_alloc(struct btrfs_block_group_cache *block_group,
+ 	ret = offset;
+ 	if (entry->bitmap) {
+ 		bitmap_clear_bits(ctl, entry, offset, bytes);
++
++		if (!btrfs_free_space_trimmed(entry))
++			atomic64_add(bytes, &discard_ctl->discard_bytes_saved);
++
+ 		if (!entry->bytes)
+ 			free_bitmap(ctl, entry);
+ 	} else {
+@@ -2841,6 +2847,9 @@ u64 btrfs_find_space_for_alloc(struct btrfs_block_group_cache *block_group,
+ 		align_gap = entry->offset;
+ 		align_gap_trim_state = entry->trim_state;
+ 
++		if (!btrfs_free_space_trimmed(entry))
++			atomic64_add(bytes, &discard_ctl->discard_bytes_saved);
++
+ 		entry->offset = offset + bytes;
+ 		WARN_ON(entry->bytes < bytes + align_gap_len);
+ 
+@@ -2945,6 +2954,8 @@ u64 btrfs_alloc_from_cluster(struct btrfs_block_group_cache *block_group,
+ 			     u64 min_start, u64 *max_extent_size)
+ {
+ 	struct btrfs_free_space_ctl *ctl = block_group->free_space_ctl;
++	struct btrfs_discard_ctl *discard_ctl =
++					&block_group->fs_info->discard_ctl;
+ 	struct btrfs_free_space *entry = NULL;
+ 	struct rb_node *node;
+ 	u64 ret = 0;
+@@ -3009,6 +3020,9 @@ u64 btrfs_alloc_from_cluster(struct btrfs_block_group_cache *block_group,
+ 
+ 	spin_lock(&ctl->tree_lock);
+ 
++	if (!btrfs_free_space_trimmed(entry))
++		atomic64_add(bytes, &discard_ctl->discard_bytes_saved);
++
+ 	ctl->free_space -= bytes;
+ 	if (!entry->bitmap && !btrfs_free_space_trimmed(entry))
+ 		ctl->discardable_bytes[BTRFS_STAT_CURR] -= bytes;
+diff --git a/fs/btrfs/sysfs.c b/fs/btrfs/sysfs.c
+index c441603b7da1..a00e260ead53 100644
+--- a/fs/btrfs/sysfs.c
++++ b/fs/btrfs/sysfs.c
+@@ -431,12 +431,48 @@ static ssize_t btrfs_discard_max_discard_size_store(struct kobject *kobj,
+ BTRFS_ATTR_RW(discard, max_discard_size, btrfs_discard_max_discard_size_show,
+ 	      btrfs_discard_max_discard_size_store);
+ 
++static ssize_t btrfs_discard_extent_bytes_show(struct kobject *kobj,
++					       struct kobj_attribute *a,
++					       char *buf)
++{
++	struct btrfs_fs_info *fs_info = discard_to_fs_info(kobj);
++
++	return snprintf(buf, PAGE_SIZE, "%lld\n",
++			READ_ONCE(fs_info->discard_ctl.discard_extent_bytes));
++}
++BTRFS_ATTR(discard, discard_extent_bytes, btrfs_discard_extent_bytes_show);
++
++static ssize_t btrfs_discard_bitmap_bytes_show(struct kobject *kobj,
++					       struct kobj_attribute *a,
++					       char *buf)
++{
++	struct btrfs_fs_info *fs_info = discard_to_fs_info(kobj);
++
++	return snprintf(buf, PAGE_SIZE, "%lld\n",
++			READ_ONCE(fs_info->discard_ctl.discard_bitmap_bytes));
++}
++BTRFS_ATTR(discard, discard_bitmap_bytes, btrfs_discard_bitmap_bytes_show);
++
++static ssize_t btrfs_discard_bytes_saved_show(struct kobject *kobj,
++					      struct kobj_attribute *a,
++					      char *buf)
++{
++	struct btrfs_fs_info *fs_info = discard_to_fs_info(kobj);
++
++	return snprintf(buf, PAGE_SIZE, "%lld\n",
++		atomic64_read(&fs_info->discard_ctl.discard_bytes_saved));
++}
++BTRFS_ATTR(discard, discard_bytes_saved, btrfs_discard_bytes_saved_show);
++
+ static const struct attribute *discard_attrs[] = {
+ 	BTRFS_ATTR_PTR(discard, discardable_extents),
+ 	BTRFS_ATTR_PTR(discard, discardable_bytes),
+ 	BTRFS_ATTR_PTR(discard, iops_limit),
+ 	BTRFS_ATTR_PTR(discard, bps_limit),
+ 	BTRFS_ATTR_PTR(discard, max_discard_size),
++	BTRFS_ATTR_PTR(discard, discard_extent_bytes),
++	BTRFS_ATTR_PTR(discard, discard_bitmap_bytes),
++	BTRFS_ATTR_PTR(discard, discard_bytes_saved),
+ 	NULL,
+ };
+ 
+-- 
+2.17.1
+

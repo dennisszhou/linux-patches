@@ -1,0 +1,130 @@
+From 8efa082438eea760533f1cddffa74cebdea6f028 Mon Sep 17 00:00:00 2001
+Message-Id: <8efa082438eea760533f1cddffa74cebdea6f028.1571865774.git.dennis@kernel.org>
+In-Reply-To: <cover.1571865774.git.dennis@kernel.org>
+References: <cover.1571865774.git.dennis@kernel.org>
+From: Dennis Zhou <dennis@kernel.org>
+Date: Fri, 12 Jul 2019 23:08:44 -0700
+Subject: [PATCH 14/22] btrfs: add bps discard rate limit
+
+Provide an ability to rate limit based on mbps in addition to the iops
+delay calculated from number of discardable extents.
+
+Signed-off-by: Dennis Zhou <dennis@kernel.org>
+---
+ fs/btrfs/ctree.h   |  2 ++
+ fs/btrfs/discard.c | 17 +++++++++++++++++
+ fs/btrfs/sysfs.c   | 31 +++++++++++++++++++++++++++++++
+ 3 files changed, 50 insertions(+)
+
+diff --git a/fs/btrfs/ctree.h b/fs/btrfs/ctree.h
+index 246141e2f825..eccfc27e9b83 100644
+--- a/fs/btrfs/ctree.h
++++ b/fs/btrfs/ctree.h
+@@ -465,10 +465,12 @@ struct btrfs_discard_ctl {
+ 	spinlock_t lock;
+ 	struct btrfs_block_group_cache *cache;
+ 	struct list_head discard_list[BTRFS_NR_DISCARD_LISTS];
++	u64 prev_discard;
+ 	atomic_t discardable_extents;
+ 	atomic64_t discardable_bytes;
+ 	u32 delay;
+ 	u32 iops_limit;
++	u64 bps_limit;
+ };
+ 
+ /* delayed seq elem */
+diff --git a/fs/btrfs/discard.c b/fs/btrfs/discard.c
+index c3da4a537b5a..70873cd884bf 100644
+--- a/fs/btrfs/discard.c
++++ b/fs/btrfs/discard.c
+@@ -238,6 +238,19 @@ void btrfs_discard_schedule_work(struct btrfs_discard_ctl *discard_ctl,
+ 	cache = find_next_cache(discard_ctl, now);
+ 	if (cache) {
+ 		u32 delay = discard_ctl->delay;
++		u64 bps_limit = READ_ONCE(discard_ctl->bps_limit);
++
++		/*
++		 * A single delayed workqueue item is responsible for
++		 * discarding, so we can manage the bytes rate limit by keeping
++		 * track of the previous discard.
++		 */
++		if (bps_limit && discard_ctl->prev_discard) {
++			u64 bps_delay = (MSEC_PER_SEC *
++					 discard_ctl->prev_discard / bps_limit);
++
++			delay = max_t(u64, delay, msecs_to_jiffies(bps_delay));
++		}
+ 
+ 		/*
+ 		 * This timeout is to hopefully prevent immediate discarding
+@@ -312,6 +325,8 @@ static void btrfs_discard_workfn(struct work_struct *work)
+ 					       btrfs_block_group_end(cache),
+ 					       0, true);
+ 
++	discard_ctl->prev_discard = trimmed;
++
+ 	/* Determine next steps for a block_group. */
+ 	if (cache->discard_cursor >= btrfs_block_group_end(cache)) {
+ 		if (discard_state == BTRFS_DISCARD_BITMAPS) {
+@@ -503,10 +518,12 @@ void btrfs_discard_init(struct btrfs_fs_info *fs_info)
+ 	for (i = 0; i < BTRFS_NR_DISCARD_LISTS; i++)
+ 		 INIT_LIST_HEAD(&discard_ctl->discard_list[i]);
+ 
++	discard_ctl->prev_discard = 0;
+ 	atomic_set(&discard_ctl->discardable_extents, 0);
+ 	atomic64_set(&discard_ctl->discardable_bytes, 0);
+ 	discard_ctl->delay = BTRFS_DISCARD_MAX_DELAY;
+ 	discard_ctl->iops_limit = BTRFS_DISCARD_MAX_IOPS;
++	discard_ctl->bps_limit = 0;
+ }
+ 
+ void btrfs_discard_cleanup(struct btrfs_fs_info *fs_info)
+diff --git a/fs/btrfs/sysfs.c b/fs/btrfs/sysfs.c
+index 4955afc225c7..070fa6223911 100644
+--- a/fs/btrfs/sysfs.c
++++ b/fs/btrfs/sysfs.c
+@@ -371,10 +371,41 @@ static ssize_t btrfs_discard_iops_limit_store(struct kobject *kobj,
+ BTRFS_ATTR_RW(discard, iops_limit, btrfs_discard_iops_limit_show,
+ 	      btrfs_discard_iops_limit_store);
+ 
++static ssize_t btrfs_discard_bps_limit_show(struct kobject *kobj,
++					    struct kobj_attribute *a,
++					    char *buf)
++{
++	struct btrfs_fs_info *fs_info = discard_to_fs_info(kobj);
++
++	return snprintf(buf, PAGE_SIZE, "%llu\n",
++			READ_ONCE(fs_info->discard_ctl.bps_limit));
++}
++
++static ssize_t btrfs_discard_bps_limit_store(struct kobject *kobj,
++					     struct kobj_attribute *a,
++					     const char *buf, size_t len)
++{
++	struct btrfs_fs_info *fs_info = discard_to_fs_info(kobj);
++	struct btrfs_discard_ctl *discard_ctl = &fs_info->discard_ctl;
++	u64 bps_limit;
++	int ret;
++
++	ret = kstrtou64(buf, 10, &bps_limit);
++	if (ret)
++		return -EINVAL;
++
++	WRITE_ONCE(discard_ctl->bps_limit, bps_limit);
++
++	return len;
++}
++BTRFS_ATTR_RW(discard, bps_limit, btrfs_discard_bps_limit_show,
++	      btrfs_discard_bps_limit_store);
++
+ static const struct attribute *discard_attrs[] = {
+ 	BTRFS_ATTR_PTR(discard, discardable_extents),
+ 	BTRFS_ATTR_PTR(discard, discardable_bytes),
+ 	BTRFS_ATTR_PTR(discard, iops_limit),
++	BTRFS_ATTR_PTR(discard, bps_limit),
+ 	NULL,
+ };
+ 
+-- 
+2.17.1
+

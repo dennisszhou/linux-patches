@@ -1,0 +1,86 @@
+From e3007650cc13578a819e2593cfdcf84db1294d02 Mon Sep 17 00:00:00 2001
+Message-Id: <e3007650cc13578a819e2593cfdcf84db1294d02.1571865774.git.dennis@kernel.org>
+In-Reply-To: <cover.1571865774.git.dennis@kernel.org>
+References: <cover.1571865774.git.dennis@kernel.org>
+From: Dennis Zhou <dennis@kernel.org>
+Date: Tue, 22 Oct 2019 13:59:31 -0700
+Subject: [PATCH 09/22] btrfs: make UUID/debug have its own kobject
+
+Btrfs only allowed attributes to be exposed in debug/. Let's let other
+groups be created by making debug its own kobject.
+
+This also makes the per-fs debug options separate from the global
+features mount attributes. This seems to be needed as
+sysfs_create_files() requires const struct attribute * while
+sysfs_create_group() can take struct attribute *. This seems nicer as
+per file system, you'll probably use to_fs_info().
+
+Signed-off-by: Dennis Zhou <dennis@kernel.org>
+---
+ fs/btrfs/ctree.h |  4 ++++
+ fs/btrfs/sysfs.c | 20 ++++++++++++++++----
+ 2 files changed, 20 insertions(+), 4 deletions(-)
+
+diff --git a/fs/btrfs/ctree.h b/fs/btrfs/ctree.h
+index e21aeb3a2266..8a34a90ce77f 100644
+--- a/fs/btrfs/ctree.h
++++ b/fs/btrfs/ctree.h
+@@ -928,6 +928,10 @@ struct btrfs_fs_info {
+ 	spinlock_t ref_verify_lock;
+ 	struct rb_root block_tree;
+ #endif
++
++#ifdef CONFIG_BTRFS_DEBUG
++	struct kobject *debug_kobj;
++#endif
+ };
+ 
+ static inline struct btrfs_fs_info *btrfs_sb(struct super_block *sb)
+diff --git a/fs/btrfs/sysfs.c b/fs/btrfs/sysfs.c
+index 16f2865fbbd4..03694792d621 100644
+--- a/fs/btrfs/sysfs.c
++++ b/fs/btrfs/sysfs.c
+@@ -319,6 +319,10 @@ static const struct attribute_group btrfs_static_feature_attr_group = {
+  * /sys/fs/btrfs/debug - applies to module or all filesystems
+  * /sys/fs/btrfs/UUID  - applies only to the given filesystem
+  */
++static const struct attribute *btrfs_debug_mount_attrs[] = {
++	NULL,
++};
++
+ static struct attribute *btrfs_debug_feature_attrs[] = {
+ 	NULL
+ };
+@@ -733,8 +737,12 @@ void btrfs_sysfs_remove_mounted(struct btrfs_fs_info *fs_info)
+ 		kobject_put(fs_info->space_info_kobj);
+ 	}
+ #ifdef CONFIG_BTRFS_DEBUG
+-	sysfs_remove_group(&fs_info->fs_devices->fsid_kobj,
+-			   &btrfs_debug_feature_attr_group);
++	if (fs_info->debug_kobj) {
++		sysfs_remove_files(fs_info->debug_kobj,
++				   btrfs_debug_mount_attrs);
++		kobject_del(fs_info->debug_kobj);
++		kobject_put(fs_info->debug_kobj);
++	}
+ #endif
+ 	addrm_unknown_feature_attrs(fs_info, false);
+ 	sysfs_remove_group(&fs_info->fs_devices->fsid_kobj, &btrfs_feature_attr_group);
+@@ -1076,8 +1084,12 @@ int btrfs_sysfs_add_mounted(struct btrfs_fs_info *fs_info)
+ 		goto failure;
+ 
+ #ifdef CONFIG_BTRFS_DEBUG
+-	error = sysfs_create_group(fsid_kobj,
+-				   &btrfs_debug_feature_attr_group);
++	fs_info->debug_kobj = kobject_create_and_add("debug", fsid_kobj);
++	if (!fs_info->debug_kobj)
++		goto failure;
++
++	error = sysfs_create_files(fs_info->debug_kobj,
++				   btrfs_debug_mount_attrs);
+ 	if (error)
+ 		goto failure;
+ #endif
+-- 
+2.17.1
+

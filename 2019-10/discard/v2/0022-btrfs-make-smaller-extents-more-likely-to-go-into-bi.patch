@@ -1,0 +1,36 @@
+From 8f693ad39ca51e6fa80b78647c2df6f769593da8 Mon Sep 17 00:00:00 2001
+Message-Id: <8f693ad39ca51e6fa80b78647c2df6f769593da8.1571865775.git.dennis@kernel.org>
+In-Reply-To: <cover.1571865774.git.dennis@kernel.org>
+References: <cover.1571865774.git.dennis@kernel.org>
+From: Dennis Zhou <dennis@kernel.org>
+Date: Mon, 30 Sep 2019 14:50:18 -0700
+Subject: [PATCH 22/22] btrfs: make smaller extents more likely to go into
+ bitmaps
+
+It's less than ideal for small extents to eat into our extent budget, so
+force extents <= 32KB into the bitmaps save for the first handful.
+
+Signed-off-by: Dennis Zhou <dennis@kernel.org>
+Reviewed-by: Josef Bacik <josef@toxicpanda.com>
+---
+ fs/btrfs/free-space-cache.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/fs/btrfs/free-space-cache.c b/fs/btrfs/free-space-cache.c
+index 4a769003414c..940e40c1712d 100644
+--- a/fs/btrfs/free-space-cache.c
++++ b/fs/btrfs/free-space-cache.c
+@@ -2104,8 +2104,8 @@ static bool use_bitmap(struct btrfs_free_space_ctl *ctl,
+ 		 * of cache left then go ahead an dadd them, no sense in adding
+ 		 * the overhead of a bitmap if we don't have to.
+ 		 */
+-		if (info->bytes <= fs_info->sectorsize * 4) {
+-			if (ctl->free_extents * 2 <= ctl->extents_thresh)
++		if (info->bytes <= fs_info->sectorsize * 8) {
++			if (ctl->free_extents * 3 <= ctl->extents_thresh)
+ 				return false;
+ 		} else {
+ 			return false;
+-- 
+2.17.1
+
