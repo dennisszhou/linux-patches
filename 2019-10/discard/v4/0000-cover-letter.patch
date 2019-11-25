@@ -1,0 +1,69 @@
+From 048ac58fcc4d6147a0025b4a6021f773d736adb5 Mon Sep 17 00:00:00 2001
+Message-Id: <cover.1574709825.git.dennis@kernel.org>
+From: Dennis Zhou <dennis@kernel.org>
+Date: Mon, 25 Nov 2019 11:23:45 -0800
+Subject: [PATCH v4 00/22] btrfs: async discard support
+
+Hello,
+
+v3 [1] had 2 minor issues which are fixed:
+ - I was generically dividing u64 which made 32 bit arches unhappy. [2]
+ - Uninitialized use of trim_state local variable [3]
+
+I've gone through and fixed the apparent u64 divisions which passes the
+make.cross build provided on the end of the series.
+
+This is based on btrfs-devel#misc-next e88411ecf657.
+
+[1] https://lore.kernel.org/linux-btrfs/cover.1574282259.git.dennis@kernel.org/
+[2] https://lore.kernel.org/linux-btrfs/201911230623.j5g9qeNZ%25lkp@intel.com/
+[3] https://lore.kernel.org/linux-btrfs/CAKwvOdn5j37AYzmoOsaSqyYdBkjqevbTrSyGQypB+G_NgxX0fQ@mail.gmail.com/
+
+diffstats below:
+
+Dennis Zhou (22):
+  bitmap: genericize percpu bitmap region iterators
+  btrfs: rename DISCARD opt to DISCARD_SYNC
+  btrfs: keep track of which extents have been discarded
+  btrfs: keep track of cleanliness of the bitmap
+  btrfs: add the beginning of async discard, discard workqueue
+  btrfs: handle empty block_group removal
+  btrfs: discard one region at a time in async discard
+  btrfs: add removal calls for sysfs debug/
+  btrfs: make UUID/debug have its own kobject
+  btrfs: add discard sysfs directory
+  btrfs: track discardable extents for async discard
+  btrfs: keep track of discardable_bytes
+  btrfs: calculate discard delay based on number of extents
+  btrfs: add bps discard rate limit
+  btrfs: limit max discard size for async discard
+  btrfs: make max async discard size tunable
+  btrfs: have multiple discard lists
+  btrfs: only keep track of data extents for async discard
+  btrfs: keep track of discard reuse stats
+  btrfs: add async discard header
+  btrfs: increase the metadata allowance for the free_space_cache
+  btrfs: make smaller extents more likely to go into bitmaps
+
+ fs/btrfs/Makefile           |   2 +-
+ fs/btrfs/block-group.c      |  56 ++-
+ fs/btrfs/block-group.h      |  30 ++
+ fs/btrfs/ctree.h            |  52 ++-
+ fs/btrfs/discard.c          | 680 ++++++++++++++++++++++++++++++++++++
+ fs/btrfs/discard.h          |  46 +++
+ fs/btrfs/disk-io.c          |  15 +-
+ fs/btrfs/extent-tree.c      |  23 +-
+ fs/btrfs/free-space-cache.c | 587 ++++++++++++++++++++++++++-----
+ fs/btrfs/free-space-cache.h |  39 ++-
+ fs/btrfs/inode-map.c        |  13 +-
+ fs/btrfs/scrub.c            |   7 +-
+ fs/btrfs/super.c            |  39 ++-
+ fs/btrfs/sysfs.c            | 205 ++++++++++-
+ include/linux/bitmap.h      |  35 ++
+ mm/percpu.c                 |  61 +---
+ 16 files changed, 1737 insertions(+), 153 deletions(-)
+ create mode 100644 fs/btrfs/discard.c
+ create mode 100644 fs/btrfs/discard.h
+
+Thanks,
+Dennis

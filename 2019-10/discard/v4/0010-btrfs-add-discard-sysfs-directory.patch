@@ -1,0 +1,83 @@
+From ecde166ccab41a3980b509a5cd7237e3fc3edc76 Mon Sep 17 00:00:00 2001
+Message-Id: <ecde166ccab41a3980b509a5cd7237e3fc3edc76.1574709825.git.dennis@kernel.org>
+In-Reply-To: <cover.1574709825.git.dennis@kernel.org>
+References: <cover.1574709825.git.dennis@kernel.org>
+From: Dennis Zhou <dennis@kernel.org>
+Date: Tue, 22 Oct 2019 15:44:05 -0700
+Subject: [PATCH 10/22] btrfs: add discard sysfs directory
+
+Setup sysfs directory for discard stats + tunables.
+
+Signed-off-by: Dennis Zhou <dennis@kernel.org>
+Reviewed-by: Josef Bacik <josef@toxicpanda.com>
+---
+ fs/btrfs/ctree.h |  1 +
+ fs/btrfs/sysfs.c | 26 ++++++++++++++++++++++++++
+ 2 files changed, 27 insertions(+)
+
+diff --git a/fs/btrfs/ctree.h b/fs/btrfs/ctree.h
+index 0c5cd5e6c2c5..6a547317d26f 100644
+--- a/fs/btrfs/ctree.h
++++ b/fs/btrfs/ctree.h
+@@ -930,6 +930,7 @@ struct btrfs_fs_info {
+ 
+ #ifdef CONFIG_BTRFS_DEBUG
+ 	struct kobject *debug_kobj;
++	struct kobject *discard_debug_kobj;
+ #endif
+ };
+ 
+diff --git a/fs/btrfs/sysfs.c b/fs/btrfs/sysfs.c
+index beae5c8146fb..e877e4b3c631 100644
+--- a/fs/btrfs/sysfs.c
++++ b/fs/btrfs/sysfs.c
+@@ -338,6 +338,13 @@ static const struct attribute_group btrfs_static_feature_attr_group = {
+ 
+ #ifdef CONFIG_BTRFS_DEBUG
+ 
++/*
++ * Discard statistics and tunables.
++ */
++static const struct attribute *discard_debug_attrs[] = {
++	NULL,
++};
++
+ /*
+  * Runtime debugging exported via sysfs
+  *
+@@ -776,6 +783,12 @@ void btrfs_sysfs_remove_mounted(struct btrfs_fs_info *fs_info)
+ 		kobject_put(fs_info->space_info_kobj);
+ 	}
+ #ifdef CONFIG_BTRFS_DEBUG
++	if (fs_info->discard_debug_kobj) {
++		sysfs_remove_files(fs_info->discard_debug_kobj,
++				   discard_debug_attrs);
++		kobject_del(fs_info->discard_debug_kobj);
++		kobject_put(fs_info->discard_debug_kobj);
++	}
+ 	if (fs_info->debug_kobj) {
+ 		sysfs_remove_files(fs_info->debug_kobj,
+ 				   btrfs_debug_mount_attrs);
+@@ -1131,6 +1144,19 @@ int btrfs_sysfs_add_mounted(struct btrfs_fs_info *fs_info)
+ 				   btrfs_debug_mount_attrs);
+ 	if (error)
+ 		goto failure;
++
++	/* Discard directory. */
++	fs_info->discard_debug_kobj = kobject_create_and_add("discard",
++						     fs_info->debug_kobj);
++	if (!fs_info->discard_debug_kobj) {
++		error = -ENOMEM;
++		goto failure;
++	}
++
++	error = sysfs_create_files(fs_info->discard_debug_kobj,
++				   discard_debug_attrs);
++	if (error)
++		goto failure;
+ #endif
+ 
+ 	error = addrm_unknown_feature_attrs(fs_info, true);
+-- 
+2.17.1
+
