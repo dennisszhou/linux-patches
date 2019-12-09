@@ -1,0 +1,42 @@
+From ebb54b6ca1a5e1b7aed41607b7942dac59dcffcf Mon Sep 17 00:00:00 2001
+From: Dennis Zhou <dennis@kernel.org>
+Date: Mon, 9 Dec 2019 11:13:25 -0800
+Subject: [PATCH] btrfs: discard before adding to the free space cache
+
+Returning free space to the free space cache lets it immediately be
+reused. So discard before returning the free space otherwise we can race
+here.
+
+Fixes: 55e734b728c0 ("btrfs: Don't discard unwritten extents")
+Cc: Nikolay Borisov <nborisov@suse.com>
+Cc: Omar Sandoval <osandov@osandov.com>
+Signed-off-by: Dennis Zhou <dennis@kernel.org>
+---
+ fs/btrfs/inode.c | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/fs/btrfs/inode.c b/fs/btrfs/inode.c
+index 625439875299..1ab13943cdf0 100644
+--- a/fs/btrfs/inode.c
++++ b/fs/btrfs/inode.c
+@@ -3250,13 +3250,14 @@ static int btrfs_finish_ordered_io(struct btrfs_ordered_extent *ordered_extent)
+ 		    clear_reserved_extent &&
+ 		    !test_bit(BTRFS_ORDERED_NOCOW, &ordered_extent->flags) &&
+ 		    !test_bit(BTRFS_ORDERED_PREALLOC, &ordered_extent->flags)) {
+-			btrfs_free_reserved_extent(fs_info,
+-						   ordered_extent->start,
+-						   ordered_extent->disk_len, 1);
+ 			if (ret && btrfs_test_opt(fs_info, DISCARD))
+ 				btrfs_discard_extent(fs_info,
+ 						ordered_extent->start,
+ 						ordered_extent->disk_len, NULL);
++
++			btrfs_free_reserved_extent(fs_info,
++						   ordered_extent->start,
++						   ordered_extent->disk_len, 1);
+ 		}
+ 	}
+ 
+-- 
+2.17.1
+

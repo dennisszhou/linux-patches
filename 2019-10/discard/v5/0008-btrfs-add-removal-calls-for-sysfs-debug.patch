@@ -1,0 +1,44 @@
+From 58fcbd3448a6d1c3fba82d4b5a1c9fb811412f18 Mon Sep 17 00:00:00 2001
+Message-Id: <58fcbd3448a6d1c3fba82d4b5a1c9fb811412f18.1575919745.git.dennis@kernel.org>
+In-Reply-To: <cover.1575919745.git.dennis@kernel.org>
+References: <cover.1575919745.git.dennis@kernel.org>
+From: Dennis Zhou <dennis@kernel.org>
+Date: Tue, 22 Oct 2019 14:08:22 -0700
+Subject: [PATCH 08/22] btrfs: add removal calls for sysfs debug/
+
+We probably should call sysfs_remove_group() on debug/.
+
+Signed-off-by: Dennis Zhou <dennis@kernel.org>
+Reviewed-by: Josef Bacik <josef@toxicpanda.com>
+---
+ fs/btrfs/sysfs.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/fs/btrfs/sysfs.c b/fs/btrfs/sysfs.c
+index 16379f491ca1..4c022757ffa4 100644
+--- a/fs/btrfs/sysfs.c
++++ b/fs/btrfs/sysfs.c
+@@ -771,6 +771,10 @@ void btrfs_sysfs_remove_mounted(struct btrfs_fs_info *fs_info)
+ 		kobject_del(fs_info->space_info_kobj);
+ 		kobject_put(fs_info->space_info_kobj);
+ 	}
++#ifdef CONFIG_BTRFS_DEBUG
++	sysfs_remove_group(&fs_info->fs_devices->fsid_kobj,
++			   &btrfs_debug_feature_attr_group);
++#endif
+ 	addrm_unknown_feature_attrs(fs_info, false);
+ 	sysfs_remove_group(&fs_info->fs_devices->fsid_kobj, &btrfs_feature_attr_group);
+ 	sysfs_remove_files(&fs_info->fs_devices->fsid_kobj, btrfs_attrs);
+@@ -1205,6 +1209,9 @@ void __cold btrfs_exit_sysfs(void)
+ 	sysfs_unmerge_group(&btrfs_kset->kobj,
+ 			    &btrfs_static_feature_attr_group);
+ 	sysfs_remove_group(&btrfs_kset->kobj, &btrfs_feature_attr_group);
++#ifdef CONFIG_BTRFS_DEBUG
++	sysfs_remove_group(&btrfs_kset->kobj, &btrfs_debug_feature_attr_group);
++#endif
+ 	kset_unregister(btrfs_kset);
+ }
+ 
+-- 
+2.17.1
+
