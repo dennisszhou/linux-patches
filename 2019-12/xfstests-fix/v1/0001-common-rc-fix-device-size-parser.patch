@@ -1,0 +1,35 @@
+From a5aea81478955deda863ee77ff94c805a0b8e2f9 Mon Sep 17 00:00:00 2001
+From: Dennis Zhou <dennis@kernel.org>
+Date: Tue, 10 Dec 2019 14:38:17 -0800
+Subject: [PATCH] common/rc: fix device size parser
+
+If you have multiple devices that share the same regex (eg dm-1, dm10),
+then _get_device_size() can return "$size\n$size" which causes the
+following error for btrfs/011.
+
+    QA output created by 011
+    ./common/rc: line 3084: [: too many arguments
+
+So, fix this by making grep check against eol.
+
+Signed-off-by: Dennis Zhou <dennis@kernel.org>
+---
+ common/rc | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/common/rc b/common/rc
+index 5cdd829b..b819ede1 100644
+--- a/common/rc
++++ b/common/rc
+@@ -3583,7 +3583,7 @@ _get_available_space()
+ # return device size in kb
+ _get_device_size()
+ {
+-	grep `_short_dev $1` /proc/partitions | awk '{print $3}'
++	grep "$(_short_dev $1)\$" /proc/partitions | awk '{print $3}'
+ }
+ 
+ # Make sure we actually have dmesg checking set up.
+-- 
+2.17.1
+
