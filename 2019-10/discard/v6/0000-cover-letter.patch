@@ -1,0 +1,75 @@
+From cf490c1c06fca244b301bb6e9b009aabc452a1da Mon Sep 17 00:00:00 2001
+Message-Id: <cover.1576195673.git.dennis@kernel.org>
+From: Dennis Zhou <dennis@kernel.org>
+Date: Thu, 12 Dec 2019 16:07:53 -0800
+Subject: [PATCH v6 00/22] btrfs: async discard support
+
+Hello,
+
+Dave reported a lockdep issue [1]. I'm a bit surprised as I can't repro
+it, but it obviously is right. I believe I fixed the issue by moving the
+fully trimmed check outside of the block_group lock.  I mistakingly
+thought the btrfs_block_group lock subsumed btrfs_free_space_ctl
+tree_lock. This clearly isn't the case.
+
+Changes in v6:
+ - Move the fully trimmed check outside of the block_group lock.
+
+v5 is available here: [2].
+
+This series is on top of btrfs-devel#misc-next 7ee98bb808e2 + [3] and
+[4].
+
+[1] https://lore.kernel.org/linux-btrfs/20191210140438.GU2734@twin.jikos.cz/
+[2] https://lore.kernel.org/linux-btrfs/cover.1575919745.git.dennis@kernel.org/
+[3] https://lore.kernel.org/linux-btrfs/d934383ea528d920a95b6107daad6023b516f0f4.1576109087.git.dennis@kernel.org/
+[4] https://lore.kernel.org/linux-btrfs/20191209193846.18162-1-dennis@kernel.org/
+
+Dennis Zhou (22):
+  bitmap: genericize percpu bitmap region iterators
+  btrfs: rename DISCARD opt to DISCARD_SYNC
+  btrfs: keep track of which extents have been discarded
+  btrfs: keep track of cleanliness of the bitmap
+  btrfs: add the beginning of async discard, discard workqueue
+  btrfs: handle empty block_group removal
+  btrfs: discard one region at a time in async discard
+  btrfs: add removal calls for sysfs debug/
+  btrfs: make UUID/debug have its own kobject
+  btrfs: add discard sysfs directory
+  btrfs: track discardable extents for async discard
+  btrfs: keep track of discardable_bytes
+  btrfs: calculate discard delay based on number of extents
+  btrfs: add bps discard rate limit
+  btrfs: limit max discard size for async discard
+  btrfs: make max async discard size tunable
+  btrfs: have multiple discard lists
+  btrfs: only keep track of data extents for async discard
+  btrfs: keep track of discard reuse stats
+  btrfs: add async discard header
+  btrfs: increase the metadata allowance for the free_space_cache
+  btrfs: make smaller extents more likely to go into bitmaps
+
+ fs/btrfs/Makefile           |   2 +-
+ fs/btrfs/block-group.c      |  87 ++++-
+ fs/btrfs/block-group.h      |  30 ++
+ fs/btrfs/ctree.h            |  52 ++-
+ fs/btrfs/discard.c          | 684 ++++++++++++++++++++++++++++++++++++
+ fs/btrfs/discard.h          |  42 +++
+ fs/btrfs/disk-io.c          |  15 +-
+ fs/btrfs/extent-tree.c      |   8 +-
+ fs/btrfs/free-space-cache.c | 611 +++++++++++++++++++++++++++-----
+ fs/btrfs/free-space-cache.h |  41 ++-
+ fs/btrfs/inode-map.c        |  13 +-
+ fs/btrfs/inode.c            |   2 +-
+ fs/btrfs/scrub.c            |   7 +-
+ fs/btrfs/super.c            |  39 +-
+ fs/btrfs/sysfs.c            | 205 ++++++++++-
+ fs/btrfs/volumes.c          |   7 +
+ include/linux/bitmap.h      |  35 ++
+ mm/percpu.c                 |  61 +---
+ 18 files changed, 1789 insertions(+), 152 deletions(-)
+ create mode 100644 fs/btrfs/discard.c
+ create mode 100644 fs/btrfs/discard.h
+
+Thanks,
+Dennis
