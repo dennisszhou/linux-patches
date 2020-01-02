@@ -1,0 +1,44 @@
+From f00ffdb40462c1dd9b611ee06cf19b2d495e398b Mon Sep 17 00:00:00 2001
+Message-Id: <cover.1577999991.git.dennis@kernel.org>
+From: Dennis Zhou <dennis@kernel.org>
+Date: Thu, 2 Jan 2020 13:19:51 -0800
+Subject: [PATCH 00/12] btrfs: async discard follow up
+
+Hello,
+
+Dave applied 1-12 from v6 [1]. This is a follow up cleaning up the
+remaining 10 patches adding 2 more to deal with a rare -1 [2] that I
+haven't quite figured out how to repro. This is also available at [3].
+
+This series is on top of btrfs-devel#misc-next-with-discard-v6 0c7be920bd7d.
+
+[1] https://lore.kernel.org/linux-btrfs/cover.1576195673.git.dennis@kernel.org/
+[2] https://lore.kernel.org/linux-btrfs/20191217145541.GE3929@suse.cz/
+[3] https://git.kernel.org/pub/scm/linux/kernel/git/dennis/misc.git/log/?h=async-discard
+
+Dennis Zhou (12):
+  btrfs: calculate discard delay based on number of extents
+  btrfs: add bps discard rate limit for async discard
+  btrfs: limit max discard size for async discard
+  btrfs: make max async discard size tunable
+  btrfs: have multiple discard lists
+  btrfs: only keep track of data extents for async discard
+  btrfs: keep track of discard reuse stats
+  btrfs: add async discard header
+  btrfs: increase the metadata allowance for the free_space_cache
+  btrfs: make smaller extents more likely to go into bitmaps
+  btrfs: ensure removal of discardable_* in free_bitmap()
+  btrfs: add correction to handle -1 edge case in async discard
+
+ fs/btrfs/block-group.h      |   7 +
+ fs/btrfs/ctree.h            |  10 +-
+ fs/btrfs/discard.c          | 258 +++++++++++++++++++++++++++++++++---
+ fs/btrfs/discard.h          |  12 ++
+ fs/btrfs/extent-tree.c      |   4 +-
+ fs/btrfs/free-space-cache.c | 154 +++++++++++++++------
+ fs/btrfs/free-space-cache.h |   2 +-
+ fs/btrfs/sysfs.c            | 129 ++++++++++++++++++
+ 8 files changed, 519 insertions(+), 57 deletions(-)
+
+Thanks,
+Dennis

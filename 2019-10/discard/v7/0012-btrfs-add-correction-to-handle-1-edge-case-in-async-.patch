@@ -1,0 +1,63 @@
+From f00ffdb40462c1dd9b611ee06cf19b2d495e398b Mon Sep 17 00:00:00 2001
+Message-Id: <f00ffdb40462c1dd9b611ee06cf19b2d495e398b.1577999991.git.dennis@kernel.org>
+In-Reply-To: <cover.1577999991.git.dennis@kernel.org>
+References: <cover.1577999991.git.dennis@kernel.org>
+From: Dennis Zhou <dennis@kernel.org>
+Date: Fri, 27 Dec 2019 21:12:54 -0800
+Subject: [PATCH 12/12] btrfs: add correction to handle -1 edge case in async
+ discard
+
+From Dave's testing, it's possible to drive a file system to have -1
+discardable_extents and a corresponding negative discardable_bytes. As
+btrfs_discard_calc_delay() is the only user of discardable_extents, we
+can correct here for any negative discardable_extents/discardable_bytes.
+
+Reported-by: David Sterba <dsterba@suse.com>
+Signed-off-by: Dennis Zhou <dennis@kernel.org>
+---
+ fs/btrfs/discard.c | 24 +++++++++++++++++++++---
+ 1 file changed, 21 insertions(+), 3 deletions(-)
+
+diff --git a/fs/btrfs/discard.c b/fs/btrfs/discard.c
+index d5a89e3755ed..d2c7851e31de 100644
+--- a/fs/btrfs/discard.c
++++ b/fs/btrfs/discard.c
+@@ -518,14 +518,32 @@ void btrfs_discard_calc_delay(struct btrfs_discard_ctl *discard_ctl)
+ {
+ 	s32 discardable_extents =
+ 		atomic_read(&discard_ctl->discardable_extents);
++	s64 discardable_bytes = atomic64_read(&discard_ctl->discardable_bytes);
+ 	unsigned iops_limit;
+ 	unsigned long delay, lower_limit = BTRFS_DISCARD_MIN_DELAY_MSEC;
+ 
+-	if (!discardable_extents)
+-		return;
+-
+ 	spin_lock(&discard_ctl->lock);
+ 
++	/*
++	 * The following is to fix a potential -1 discrepenancy that I'm not
++	 * sure how to reproduce.  But given that this is the only place that
++	 * utilizes these numbers and this is only called by from
++	 * btrfs_finish_extent_commit() which is synchronized, we can correct
++	 * here.
++	 */
++	if (discardable_extents < 0)
++		atomic_add(-discardable_extents,
++			   &discard_ctl->discardable_extents);
++
++	if (discardable_bytes < 0)
++		atomic64_add(-discardable_bytes,
++			     &discard_ctl->discardable_bytes);
++
++	if (discardable_extents <= 0) {
++		spin_unlock(&discard_ctl->lock);
++		return;
++	}
++
+ 	iops_limit = READ_ONCE(discard_ctl->iops_limit);
+ 	if (iops_limit)
+ 		lower_limit = max_t(unsigned long, lower_limit,
+-- 
+2.17.1
+

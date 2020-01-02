@@ -1,0 +1,55 @@
+From fe33c76ede300fd4cb03d0a7878cac0cbee47c42 Mon Sep 17 00:00:00 2001
+Message-Id: <fe33c76ede300fd4cb03d0a7878cac0cbee47c42.1577999991.git.dennis@kernel.org>
+In-Reply-To: <cover.1577999991.git.dennis@kernel.org>
+References: <cover.1577999991.git.dennis@kernel.org>
+From: Dennis Zhou <dennis@kernel.org>
+Date: Fri, 27 Dec 2019 21:01:55 -0800
+Subject: [PATCH 11/12] btrfs: ensure removal of discardable_* in free_bitmap()
+
+Most callers of free_bitmap() only call it if bitmap_info->bytes is 0.
+However, there are certain cases where we may free the free space cache
+via __btrfs_remove_free_space_cache(). This exposes a path where
+free_bitmap() is called regardless. This may result in a bad accounting
+situation for discardable_bytes and discardable_extents. So, remove the
+stats and call btrfs_discard_update_discardable().
+
+Signed-off-by: Dennis Zhou <dennis@kernel.org>
+---
+ fs/btrfs/free-space-cache.c | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+diff --git a/fs/btrfs/free-space-cache.c b/fs/btrfs/free-space-cache.c
+index 6d74d96a1d13..2b294c57060c 100644
+--- a/fs/btrfs/free-space-cache.c
++++ b/fs/btrfs/free-space-cache.c
+@@ -1959,6 +1959,18 @@ static void add_new_bitmap(struct btrfs_free_space_ctl *ctl,
+ static void free_bitmap(struct btrfs_free_space_ctl *ctl,
+ 			struct btrfs_free_space *bitmap_info)
+ {
++	/*
++	 * Normally when this is called, the bitmap is fully empty.  However,
++	 * if we are blowing up the free space cache for one reason or another
++	 * via __btrfs_remove_free_space_cache(), then it may not be freed and
++	 * we may leave stats on the table.
++	 */
++	if (bitmap_info->bytes && !btrfs_free_space_trimmed(bitmap_info)) {
++		ctl->discardable_extents[BTRFS_STAT_CURR] -=
++			bitmap_info->bitmap_extents;
++		ctl->discardable_bytes[BTRFS_STAT_CURR] -= bitmap_info->bytes;
++
++	}
+ 	unlink_free_space(ctl, bitmap_info);
+ 	kmem_cache_free(btrfs_free_space_bitmap_cachep, bitmap_info->bitmap);
+ 	kmem_cache_free(btrfs_free_space_cachep, bitmap_info);
+@@ -2776,6 +2788,8 @@ void __btrfs_remove_free_space_cache(struct btrfs_free_space_ctl *ctl)
+ {
+ 	spin_lock(&ctl->tree_lock);
+ 	__btrfs_remove_free_space_cache_locked(ctl);
++	if (ctl->private)
++		btrfs_discard_update_discardable(ctl->private, ctl);
+ 	spin_unlock(&ctl->tree_lock);
+ }
+ 
+-- 
+2.17.1
+
