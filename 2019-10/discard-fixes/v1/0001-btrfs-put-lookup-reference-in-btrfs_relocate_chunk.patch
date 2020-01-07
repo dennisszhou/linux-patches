@@ -1,0 +1,30 @@
+From adf2806c5969322c40822b82af0faade07d15bf3 Mon Sep 17 00:00:00 2001
+From: Dennis Zhou <dennis@kernel.org>
+Date: Tue, 7 Jan 2020 14:14:04 -0800
+Subject: [PATCH] btrfs: put lookup reference in btrfs_relocate_chunk()
+
+Async discard requires looking up the block_group in the relocation path
+to cancel any work items against it. However, I forgot to put the
+reference from btrfs_lookup_block_group().
+
+Reported-by: Johannes Thumshirn <jth@kernel.org>
+Signed-off-by: Dennis Zhou <dennis@kernel.org>
+---
+ fs/btrfs/volumes.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/fs/btrfs/volumes.c b/fs/btrfs/volumes.c
+index 65e78e59d5c4..eb55df0d4038 100644
+--- a/fs/btrfs/volumes.c
++++ b/fs/btrfs/volumes.c
+@@ -2898,6 +2898,7 @@ static int btrfs_relocate_chunk(struct btrfs_fs_info *fs_info, u64 chunk_offset)
+ 	if (!block_group)
+ 		return -ENOENT;
+ 	btrfs_discard_cancel_work(&fs_info->discard_ctl, block_group);
++	btrfs_put_block_group(block_group);
+ 
+ 	trans = btrfs_start_trans_remove_block_group(root->fs_info,
+ 						     chunk_offset);
+-- 
+2.17.1
+
