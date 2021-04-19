@@ -1,0 +1,90 @@
+From 50372c44721c2864df8c023a557993938f43e50e Mon Sep 17 00:00:00 2001
+From: Dennis Zhou <dennis@kernel.org>
+Date: Tue, 29 Dec 2020 21:42:34 +0000
+Subject: [PATCH] percpu: fix clang modpost warning in pcpu_build_alloc_info()
+
+This is an unusual situation so I thought it best to explain it in a
+separate patch.
+
+"percpu: reduce the number of cpu distance comparisons" introduces a
+dependency on cpumask helper functions in __init code. This code
+references a struct cpumask annotated __initdata. When the function is
+inlined (gcc), everything is fine, but clang decides not to inline these
+function calls. This causes modpost to warn about an __initdata access
+by a function not annotated with __init [1].
+
+Ways I thought about fixing it:
+1. figure out why clang thinks this inlining is too costly.
+2. create a wrapper function annotated __init (this).
+3. annotate cpumask with __refdata.
+
+Ultimately it comes down to if it's worth saving the cpumask memory and
+allowing it to be freed. IIUC, __refdata won't be freed, so option 3 is
+just a little wasteful. 1 is out of my depth, leaving 2. I don't feel
+great about this behavior being dependent on inlining semantics, but
+cpumask helpers are small and probably should be inlined.
+
+modpost complaint:
+  WARNING: modpost: vmlinux.o(.text+0x735425): Section mismatch in reference from the function cpumask_clear_cpu() to the variable .init.data:pcpu_build_alloc_info.mask
+  The function cpumask_clear_cpu() references
+  the variable __initdata pcpu_build_alloc_info.mask.
+  This is often because cpumask_clear_cpu lacks a __initdata
+  annotation or the annotation of pcpu_build_alloc_info.mask is wrong.
+
+clang output:
+  mm/percpu.c:2724:5: remark: cpumask_clear_cpu not inlined into pcpu_build_alloc_info because too costly to inline (cost=725, threshold=325) [-Rpass-missed=inline]
+
+[1] https://lore.kernel.org/linux-mm/202012220454.9F6Bkz9q-lkp@intel.com/
+
+Reported-by: kernel test robot <lkp@intel.com>
+Signed-off-by: Dennis Zhou <dennis@kernel.org>
+---
+This is on top of percpu#for-5.12.
+
+ mm/percpu.c | 16 ++++++++++++++--
+ 1 file changed, 14 insertions(+), 2 deletions(-)
+
+diff --git a/mm/percpu.c b/mm/percpu.c
+index 80f8f885a990..357977c4cb00 100644
+--- a/mm/percpu.c
++++ b/mm/percpu.c
+@@ -2642,6 +2642,18 @@ early_param("percpu_alloc", percpu_alloc_setup);
+ 
+ /* pcpu_build_alloc_info() is used by both embed and page first chunk */
+ #if defined(BUILD_EMBED_FIRST_CHUNK) || defined(BUILD_PAGE_FIRST_CHUNK)
++
++/*
++ * This wrapper is to avoid a warning where cpumask_clear_cpu() is not inlined
++ * when compiling with clang causing modpost to warn about accessing __initdata
++ * from a non __init function.  By doing this, we allow the struct cpumask to be
++ * freed instead of it taking space by annotating with __refdata.
++ */
++static void __init pcpu_cpumask_clear_cpu(int cpu, struct cpumask *mask)
++{
++	cpumask_clear_cpu(cpu, mask);
++}
++
+ /**
+  * pcpu_build_alloc_info - build alloc_info considering distances between CPUs
+  * @reserved_size: the size of reserved percpu area in bytes
+@@ -2713,7 +2725,7 @@ static struct pcpu_alloc_info * __init pcpu_build_alloc_info(
+ 		cpu = cpumask_first(&mask);
+ 		group_map[cpu] = group;
+ 		group_cnt[group]++;
+-		cpumask_clear_cpu(cpu, &mask);
++		pcpu_cpumask_clear_cpu(cpu, &mask);
+ 
+ 		for_each_cpu(tcpu, &mask) {
+ 			if (!cpu_distance_fn ||
+@@ -2721,7 +2733,7 @@ static struct pcpu_alloc_info * __init pcpu_build_alloc_info(
+ 			     cpu_distance_fn(tcpu, cpu) == LOCAL_DISTANCE)) {
+ 				group_map[tcpu] = group;
+ 				group_cnt[group]++;
+-				cpumask_clear_cpu(tcpu, &mask);
++				pcpu_cpumask_clear_cpu(tcpu, &mask);
+ 			}
+ 		}
+ 	}
+-- 
+2.29.2.729.g45daf8777d-goog
+

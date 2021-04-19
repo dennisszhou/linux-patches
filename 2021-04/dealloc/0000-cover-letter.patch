@@ -1,0 +1,57 @@
+From 1779925dff55790276b4a5c048a7c68a12c62c85 Mon Sep 17 00:00:00 2001
+From: Dennis Zhou <dennis@kernel.org>
+Date: Mon, 19 Apr 2021 22:20:08 +0000
+Subject: [PATCH v4 0/4] percpu: partial chunk depopulation
+
+Hello,
+
+This series is a continuation of Roman's series in [1]. It aims to solve
+chunks holding onto free pages by adding a reclaim process to the percpu
+balance work item.
+
+The main difference is that the nr_empty_pop_pages is now managed at
+time of isolation instead of intermixed. This helps with deciding which
+chunks to free instead of having to interleave returning chunks to
+active duty.
+
+The allocation priority is as follows:
+  1) appropriate chunk slot increasing until fit
+  2) sidelined chunks
+  3) full free chunks
+
+The last slot for to_depopulate is never used for allocations.
+
+A big thanks to Roman for initiating the work and being available for
+iterating on these ideas.
+
+This patchset contains the following 4 patches:
+  0001-percpu-factor-out-pcpu_check_block_hint.patch
+  0002-percpu-use-pcpu_free_slot-instead-of-pcpu_nr_slots-1.patch
+  0003-percpu-implement-partial-chunk-depopulation.patch
+  0004-percpu-use-reclaim-threshold-instead-of-running-for-.patch
+
+0001 and 0002 are clean ups. 0003 implement partial chunk depopulation
+initially from Roman. 0004 adds a reclaim threshold so we do not need to
+schedule for every page freed.
+
+This series is on top of percpu$for-5.14 67c2669d69fb.
+
+diffstats below:
+
+Dennis Zhou (2):
+  percpu: use pcpu_free_slot instead of pcpu_nr_slots - 1
+  percpu: use reclaim threshold instead of running for every page
+
+Roman Gushchin (2):
+  percpu: factor out pcpu_check_block_hint()
+  percpu: implement partial chunk depopulation
+
+ mm/percpu-internal.h |   5 +
+ mm/percpu-km.c       |   5 +
+ mm/percpu-stats.c    |  20 ++--
+ mm/percpu-vm.c       |  30 ++++++
+ mm/percpu.c          | 252 ++++++++++++++++++++++++++++++++++++++-----
+ 5 files changed, 278 insertions(+), 34 deletions(-)
+
+Thanks,
+Dennis
