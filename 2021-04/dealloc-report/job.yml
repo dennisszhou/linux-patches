@@ -1,0 +1,148 @@
+---
+suite: aim9
+testcase: aim9
+category: benchmark
+aim9:
+  testtime: 300s
+  test: sync_disk_rw
+job_origin: aim9.yaml
+queue_cmdline_keys:
+- branch
+- commit
+- queue_at_least_once
+queue: bisect
+testbox: lkp-knl-f1
+tbox_group: lkp-knl-f1
+kconfig: x86_64-rhel-8.3
+submit_id: 6086cbf7671adc867e748825
+job_file: "/lkp/jobs/scheduled/lkp-knl-f1/aim9-performance-sync_disk_rw-300s-ucode=0xffff0190-monitor=05f94038-debian-10.4-x86_64-20200603.cgz-ace7e7090137ee996757eb5eebc-20210426-34430-40heha-2.yaml"
+id: 1b28cae993ea14d3e15bd1c5b94f1f5d6e7b603a
+queuer_version: "/lkp-src"
+model: Knights Landing
+nr_node: 2
+nr_cpu: 256
+memory: 112G
+nr_hdd_partitions: 4
+nr_ssd_partitions: 1
+hdd_partitions: "/dev/disk/by-id/ata-ST4000NM0033-9ZM170_Z1ZBHQMW-part*"
+ssd_partitions: "/dev/disk/by-id/ata-INTEL_SSDSC2BB800G4_PHWL42040051800RGN-part2"
+rootfs_partition: "/dev/disk/by-id/ata-INTEL_SSDSC2BB800G4_PHWL42040051800RGN-part1"
+brand: Intel(R) Genuine Intel(R) CPU 0000 @ 1.30GHz
+kmsg: 
+boot-time: 
+uptime: 
+iostat: 
+heartbeat: 
+vmstat: 
+numa-numastat: 
+numa-vmstat: 
+numa-meminfo: 
+proc-vmstat: 
+proc-stat: 
+meminfo: 
+slabinfo: 
+interrupts: 
+lock_stat: 
+perf-sched:
+  lite_mode: 1
+softirqs: 
+bdi_dev_mapping: 
+diskstats: 
+nfsstat: 
+cpuidle: 
+cpufreq-stats: 
+turbostat: 
+sched_debug: 
+perf-stat: 
+mpstat: 
+perf-profile: 
+cpufreq_governor: performance
+commit: ace7e7090137ee996757eb5eebc94439b0e2803a
+ucode: '0xffff0190'
+need_kconfig_hw:
+- CONFIG_IGB=y
+- CONFIG_SATA_AHCI
+bisect_dmesg: true
+enqueue_time: 2021-04-26 22:19:35.366384497 +08:00
+_id: 6086cbfa671adc867e748827
+_rt: "/result/aim9/performance-sync_disk_rw-300s-ucode=0xffff0190-monitor=05f94038/lkp-knl-f1/debian-10.4-x86_64-20200603.cgz/x86_64-rhel-8.3/gcc-9/ace7e7090137ee996757eb5eebc94439b0e2803a"
+user: lkp
+compiler: gcc-9
+LKP_SERVER: internal-lkp-server
+head_commit: 7dcf99cff58b04336a26f287ad03853db03862f1
+base_commit: bf05bf16c76bb44ab5156223e1e58e26dfe30a88
+branch: linux-devel/devel-hourly-20210425-211047
+rootfs: debian-10.4-x86_64-20200603.cgz
+monitor_sha: 05f94038
+result_root: "/result/aim9/performance-sync_disk_rw-300s-ucode=0xffff0190-monitor=05f94038/lkp-knl-f1/debian-10.4-x86_64-20200603.cgz/x86_64-rhel-8.3/gcc-9/ace7e7090137ee996757eb5eebc94439b0e2803a/0"
+scheduler_version: "/lkp/lkp/.src-20210425-142307"
+arch: x86_64
+max_uptime: 2100
+initrd: "/osimage/debian/debian-10.4-x86_64-20200603.cgz"
+bootloader_append:
+- root=/dev/ram0
+- user=lkp
+- job=/lkp/jobs/scheduled/lkp-knl-f1/aim9-performance-sync_disk_rw-300s-ucode=0xffff0190-monitor=05f94038-debian-10.4-x86_64-20200603.cgz-ace7e7090137ee996757eb5eebc-20210426-34430-40heha-2.yaml
+- ARCH=x86_64
+- kconfig=x86_64-rhel-8.3
+- branch=linux-devel/devel-hourly-20210425-211047
+- commit=ace7e7090137ee996757eb5eebc94439b0e2803a
+- BOOT_IMAGE=/pkg/linux/x86_64-rhel-8.3/gcc-9/ace7e7090137ee996757eb5eebc94439b0e2803a/vmlinuz-5.12.0-rc7-00006-gace7e7090137
+- max_uptime=2100
+- RESULT_ROOT=/result/aim9/performance-sync_disk_rw-300s-ucode=0xffff0190-monitor=05f94038/lkp-knl-f1/debian-10.4-x86_64-20200603.cgz/x86_64-rhel-8.3/gcc-9/ace7e7090137ee996757eb5eebc94439b0e2803a/0
+- LKP_SERVER=internal-lkp-server
+- nokaslr
+- selinux=0
+- debug
+- apic=debug
+- sysrq_always_enabled
+- rcupdate.rcu_cpu_stall_timeout=100
+- net.ifnames=0
+- printk.devkmsg=on
+- panic=-1
+- softlockup_panic=1
+- nmi_watchdog=panic
+- oops=panic
+- load_ramdisk=2
+- prompt_ramdisk=0
+- drbd.minor_count=8
+- systemd.log_level=err
+- ignore_loglevel
+- console=tty0
+- earlyprintk=ttyS0,115200
+- console=ttyS0,115200
+- vga=normal
+- rw
+modules_initrd: "/pkg/linux/x86_64-rhel-8.3/gcc-9/ace7e7090137ee996757eb5eebc94439b0e2803a/modules.cgz"
+bm_initrd: "/osimage/deps/debian-10.4-x86_64-20200603.cgz/run-ipconfig_20200608.cgz,/osimage/deps/debian-10.4-x86_64-20200603.cgz/lkp_20201211.cgz,/osimage/deps/debian-10.4-x86_64-20200603.cgz/rsync-rootfs_20200608.cgz,/osimage/pkg/debian-10.4-x86_64-20200603.cgz/aim9-x86_64-1-1_20210401.cgz,/osimage/deps/debian-10.4-x86_64-20200603.cgz/mpstat_20200714.cgz,/osimage/deps/debian-10.4-x86_64-20200603.cgz/turbostat_20200721.cgz,/osimage/pkg/debian-10.4-x86_64-20200603.cgz/turbostat-x86_64-3.7-4_20200721.cgz,/osimage/deps/debian-10.4-x86_64-20200603.cgz/perf_20201126.cgz,/osimage/pkg/debian-10.4-x86_64-20200603.cgz/perf-x86_64-d19cc4bfbff1-1_20210401.cgz,/osimage/pkg/debian-10.4-x86_64-20200603.cgz/sar-x86_64-34c92ae-1_20200702.cgz,/osimage/deps/debian-10.4-x86_64-20200603.cgz/hw_20200715.cgz"
+ucode_initrd: "/osimage/ucode/intel-ucode-20210222.cgz"
+lkp_initrd: "/osimage/user/lkp/lkp-x86_64.cgz"
+site: inn
+LKP_CGI_PORT: 80
+LKP_CIFS_PORT: 139
+oom-killer: 
+watchdog: 
+last_kernel: 5.12.0-rc2-00021-gd6100d764cc4
+repeat_to: 3
+good_samples:
+- 100848.74
+- 104116.79
+- 100809.44
+
+#! queue options
+
+#! user overrides
+queue_at_least_once: 0
+
+#! schedule options
+kernel: "/pkg/linux/x86_64-rhel-8.3/gcc-9/ace7e7090137ee996757eb5eebc94439b0e2803a/vmlinuz-5.12.0-rc7-00006-gace7e7090137"
+dequeue_time: 2021-04-26 22:20:23.396384440 +08:00
+
+#! /lkp/lkp/.src-20210425-142307/include/site/inn
+
+#! runtime status
+job_state: finished
+loadavg: 1.28 2.49 1.56 1/1718 11470
+start_time: '1619446947'
+end_time: '1619447247'
+version: "/lkp/lkp/.src-20210425-142340:01225f6d-dirty:9486817ee"

@@ -1,0 +1,47 @@
+From a1464c4d5900cca68fd95b935178d72bb74837d5 Mon Sep 17 00:00:00 2001
+From: Dennis Zhou <dennis@kernel.org>
+Date: Tue, 20 Apr 2021 14:25:20 +0000
+Subject: [PATCH] percpu: convert free page float to bytes
+
+The percpu memory allocator keeps around a minimum number of free pages
+to ensure we can satisfy atomic allocations. However, we've always kept
+this number in terms of pages. On certain architectures like arm and
+powerpc, the default page size could be 64k instead of 4k. So, start
+with a target number of free bytes and then convert to pages.
+
+Signed-off-by: Dennis Zhou <dennis@kernel.org>
+---
+ mm/percpu.c | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/mm/percpu.c b/mm/percpu.c
+index ba13e683d022..287fe3091244 100644
+--- a/mm/percpu.c
++++ b/mm/percpu.c
+@@ -80,6 +80,7 @@
+ #include <linux/mutex.h>
+ #include <linux/percpu.h>
+ #include <linux/pfn.h>
++#include <linux/sizes.h>
+ #include <linux/slab.h>
+ #include <linux/spinlock.h>
+ #include <linux/vmalloc.h>
+@@ -107,11 +108,12 @@
+ /* chunks in slots below this are subject to being sidelined on failed alloc */
+ #define PCPU_SLOT_FAIL_THRESHOLD	3
+ 
+-#define PCPU_EMPTY_POP_PAGES_LOW	2
+-#define PCPU_EMPTY_POP_PAGES_HIGH	4
++#define PCPU_EMPTY_POP_PAGES_LOW	(max_t(int, (SZ_8K) / PAGE_SIZE, 1))
++#define PCPU_EMPTY_POP_PAGES_HIGH	(max_t(int, (SZ_16K) / PAGE_SIZE, \
++					       PCPU_EMPTY_POP_PAGES_LOW + 1))
+ 
+ /* only schedule reclaim if there are at least N empty pop pages sidelined */
+-#define PCPU_EMPTY_POP_RECLAIM_THRESHOLD	4
++#define PCPU_EMPTY_POP_RECLAIM_THRESHOLD	(PCPU_EMPTY_POP_PAGES_HIGH)
+ 
+ #ifdef CONFIG_SMP
+ /* default addr <-> pcpu_ptr mapping, override in asm/percpu.h if necessary */
+-- 
+2.31.1.368.gbe11c130af-goog
+

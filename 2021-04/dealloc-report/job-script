@@ -1,0 +1,188 @@
+#!/bin/sh
+
+export_top_env()
+{
+	export suite='aim9'
+	export testcase='aim9'
+	export category='benchmark'
+	export job_origin='aim9.yaml'
+	export queue_cmdline_keys='branch
+commit
+queue_at_least_once'
+	export queue='reconfirm'
+	export testbox='lkp-knl-f1'
+	export tbox_group='lkp-knl-f1'
+	export kconfig='x86_64-rhel-8.3'
+	export submit_id='6086da2ab0773528ccce12ea'
+	export job_file='/lkp/jobs/scheduled/lkp-knl-f1/aim9-performance-sync_disk_rw-300s-ucode=0xffff0190-monitor=05f94038-debian-10.4-x86_64-20200603.cgz-ace7e7090137ee996757eb5eebc-20210426-10444-1h7olm7-3.yaml'
+	export id='bb78560ef069eb35850c0f0df21a4c2ee18a97c0'
+	export queuer_version='/lkp-src'
+	export model='Knights Landing'
+	export nr_node=2
+	export nr_cpu=256
+	export memory='112G'
+	export nr_hdd_partitions=4
+	export nr_ssd_partitions=1
+	export hdd_partitions='/dev/disk/by-id/ata-ST4000NM0033-9ZM170_Z1ZBHQMW-part*'
+	export ssd_partitions='/dev/disk/by-id/ata-INTEL_SSDSC2BB800G4_PHWL42040051800RGN-part2'
+	export rootfs_partition='/dev/disk/by-id/ata-INTEL_SSDSC2BB800G4_PHWL42040051800RGN-part1'
+	export brand='Intel(R) Genuine Intel(R) CPU 0000 @ 1.30GHz'
+	export commit='ace7e7090137ee996757eb5eebc94439b0e2803a'
+	export ucode='0xffff0190'
+	export need_kconfig_hw='CONFIG_IGB=y
+CONFIG_SATA_AHCI'
+	export bisect_dmesg=true
+	export enqueue_time='2021-04-26 23:20:10 +0800'
+	export _id='6086da2ab0773528ccce12ea'
+	export _rt='/result/aim9/performance-sync_disk_rw-300s-ucode=0xffff0190-monitor=05f94038/lkp-knl-f1/debian-10.4-x86_64-20200603.cgz/x86_64-rhel-8.3/gcc-9/ace7e7090137ee996757eb5eebc94439b0e2803a'
+	export user='lkp'
+	export compiler='gcc-9'
+	export LKP_SERVER='internal-lkp-server'
+	export head_commit='7dcf99cff58b04336a26f287ad03853db03862f1'
+	export base_commit='bf05bf16c76bb44ab5156223e1e58e26dfe30a88'
+	export branch='linux-devel/devel-hourly-20210425-211047'
+	export rootfs='debian-10.4-x86_64-20200603.cgz'
+	export monitor_sha='05f94038'
+	export result_root='/result/aim9/performance-sync_disk_rw-300s-ucode=0xffff0190-monitor=05f94038/lkp-knl-f1/debian-10.4-x86_64-20200603.cgz/x86_64-rhel-8.3/gcc-9/ace7e7090137ee996757eb5eebc94439b0e2803a/3'
+	export scheduler_version='/lkp/lkp/.src-20210425-142307'
+	export arch='x86_64'
+	export max_uptime=2100
+	export initrd='/osimage/debian/debian-10.4-x86_64-20200603.cgz'
+	export bootloader_append='root=/dev/ram0
+user=lkp
+job=/lkp/jobs/scheduled/lkp-knl-f1/aim9-performance-sync_disk_rw-300s-ucode=0xffff0190-monitor=05f94038-debian-10.4-x86_64-20200603.cgz-ace7e7090137ee996757eb5eebc-20210426-10444-1h7olm7-3.yaml
+ARCH=x86_64
+kconfig=x86_64-rhel-8.3
+branch=linux-devel/devel-hourly-20210425-211047
+commit=ace7e7090137ee996757eb5eebc94439b0e2803a
+BOOT_IMAGE=/pkg/linux/x86_64-rhel-8.3/gcc-9/ace7e7090137ee996757eb5eebc94439b0e2803a/vmlinuz-5.12.0-rc7-00006-gace7e7090137
+max_uptime=2100
+RESULT_ROOT=/result/aim9/performance-sync_disk_rw-300s-ucode=0xffff0190-monitor=05f94038/lkp-knl-f1/debian-10.4-x86_64-20200603.cgz/x86_64-rhel-8.3/gcc-9/ace7e7090137ee996757eb5eebc94439b0e2803a/3
+LKP_SERVER=internal-lkp-server
+nokaslr
+selinux=0
+debug
+apic=debug
+sysrq_always_enabled
+rcupdate.rcu_cpu_stall_timeout=100
+net.ifnames=0
+printk.devkmsg=on
+panic=-1
+softlockup_panic=1
+nmi_watchdog=panic
+oops=panic
+load_ramdisk=2
+prompt_ramdisk=0
+drbd.minor_count=8
+systemd.log_level=err
+ignore_loglevel
+console=tty0
+earlyprintk=ttyS0,115200
+console=ttyS0,115200
+vga=normal
+rw'
+	export modules_initrd='/pkg/linux/x86_64-rhel-8.3/gcc-9/ace7e7090137ee996757eb5eebc94439b0e2803a/modules.cgz'
+	export bm_initrd='/osimage/deps/debian-10.4-x86_64-20200603.cgz/run-ipconfig_20200608.cgz,/osimage/deps/debian-10.4-x86_64-20200603.cgz/lkp_20201211.cgz,/osimage/deps/debian-10.4-x86_64-20200603.cgz/rsync-rootfs_20200608.cgz,/osimage/pkg/debian-10.4-x86_64-20200603.cgz/aim9-x86_64-1-1_20210401.cgz,/osimage/deps/debian-10.4-x86_64-20200603.cgz/mpstat_20200714.cgz,/osimage/deps/debian-10.4-x86_64-20200603.cgz/turbostat_20200721.cgz,/osimage/pkg/debian-10.4-x86_64-20200603.cgz/turbostat-x86_64-3.7-4_20200721.cgz,/osimage/deps/debian-10.4-x86_64-20200603.cgz/perf_20201126.cgz,/osimage/pkg/debian-10.4-x86_64-20200603.cgz/perf-x86_64-d19cc4bfbff1-1_20210401.cgz,/osimage/pkg/debian-10.4-x86_64-20200603.cgz/sar-x86_64-34c92ae-1_20200702.cgz,/osimage/deps/debian-10.4-x86_64-20200603.cgz/hw_20200715.cgz'
+	export ucode_initrd='/osimage/ucode/intel-ucode-20210222.cgz'
+	export lkp_initrd='/osimage/user/lkp/lkp-x86_64.cgz'
+	export site='inn'
+	export LKP_CGI_PORT=80
+	export LKP_CIFS_PORT=139
+	export last_kernel='5.12.0-rc2-00021-gd6100d764cc4'
+	export repeat_to=5
+	export prev_bisect_good_samples='100848.74
+104116.79
+100809.44'
+	export queue_at_least_once=0
+	export kernel='/pkg/linux/x86_64-rhel-8.3/gcc-9/ace7e7090137ee996757eb5eebc94439b0e2803a/vmlinuz-5.12.0-rc7-00006-gace7e7090137'
+	export dequeue_time='2021-04-26 23:20:56 +0800'
+	export job_initrd='/lkp/jobs/scheduled/lkp-knl-f1/aim9-performance-sync_disk_rw-300s-ucode=0xffff0190-monitor=05f94038-debian-10.4-x86_64-20200603.cgz-ace7e7090137ee996757eb5eebc-20210426-10444-1h7olm7-3.cgz'
+
+	[ -n "$LKP_SRC" ] ||
+	export LKP_SRC=/lkp/${user:-lkp}/src
+}
+
+run_job()
+{
+	echo $$ > $TMP/run-job.pid
+
+	. $LKP_SRC/lib/http.sh
+	. $LKP_SRC/lib/job.sh
+	. $LKP_SRC/lib/env.sh
+
+	export_top_env
+
+	run_setup $LKP_SRC/setup/cpufreq_governor 'performance'
+
+	run_monitor $LKP_SRC/monitors/wrapper kmsg
+	run_monitor $LKP_SRC/monitors/no-stdout/wrapper boot-time
+	run_monitor $LKP_SRC/monitors/wrapper uptime
+	run_monitor $LKP_SRC/monitors/wrapper iostat
+	run_monitor $LKP_SRC/monitors/wrapper heartbeat
+	run_monitor $LKP_SRC/monitors/wrapper vmstat
+	run_monitor $LKP_SRC/monitors/wrapper numa-numastat
+	run_monitor $LKP_SRC/monitors/wrapper numa-vmstat
+	run_monitor $LKP_SRC/monitors/wrapper numa-meminfo
+	run_monitor $LKP_SRC/monitors/wrapper proc-vmstat
+	run_monitor $LKP_SRC/monitors/wrapper proc-stat
+	run_monitor $LKP_SRC/monitors/wrapper meminfo
+	run_monitor $LKP_SRC/monitors/wrapper slabinfo
+	run_monitor $LKP_SRC/monitors/wrapper interrupts
+	run_monitor $LKP_SRC/monitors/wrapper lock_stat
+	run_monitor lite_mode=1 $LKP_SRC/monitors/wrapper perf-sched
+	run_monitor $LKP_SRC/monitors/wrapper softirqs
+	run_monitor $LKP_SRC/monitors/one-shot/wrapper bdi_dev_mapping
+	run_monitor $LKP_SRC/monitors/wrapper diskstats
+	run_monitor $LKP_SRC/monitors/wrapper nfsstat
+	run_monitor $LKP_SRC/monitors/wrapper cpuidle
+	run_monitor $LKP_SRC/monitors/wrapper cpufreq-stats
+	run_monitor $LKP_SRC/monitors/wrapper turbostat
+	run_monitor $LKP_SRC/monitors/wrapper sched_debug
+	run_monitor $LKP_SRC/monitors/wrapper perf-stat
+	run_monitor $LKP_SRC/monitors/wrapper mpstat
+	run_monitor $LKP_SRC/monitors/no-stdout/wrapper perf-profile
+	run_monitor $LKP_SRC/monitors/wrapper oom-killer
+	run_monitor $LKP_SRC/monitors/plain/watchdog
+
+	run_test testtime=300 test='sync_disk_rw' $LKP_SRC/tests/wrapper aim9
+}
+
+extract_stats()
+{
+	export stats_part_begin=
+	export stats_part_end=
+
+	env testtime=300 test='sync_disk_rw' $LKP_SRC/stats/wrapper aim9
+	$LKP_SRC/stats/wrapper kmsg
+	$LKP_SRC/stats/wrapper boot-time
+	$LKP_SRC/stats/wrapper uptime
+	$LKP_SRC/stats/wrapper iostat
+	$LKP_SRC/stats/wrapper vmstat
+	$LKP_SRC/stats/wrapper numa-numastat
+	$LKP_SRC/stats/wrapper numa-vmstat
+	$LKP_SRC/stats/wrapper numa-meminfo
+	$LKP_SRC/stats/wrapper proc-vmstat
+	$LKP_SRC/stats/wrapper meminfo
+	$LKP_SRC/stats/wrapper slabinfo
+	$LKP_SRC/stats/wrapper interrupts
+	$LKP_SRC/stats/wrapper lock_stat
+	env lite_mode=1 $LKP_SRC/stats/wrapper perf-sched
+	$LKP_SRC/stats/wrapper softirqs
+	$LKP_SRC/stats/wrapper diskstats
+	$LKP_SRC/stats/wrapper nfsstat
+	$LKP_SRC/stats/wrapper cpuidle
+	$LKP_SRC/stats/wrapper turbostat
+	$LKP_SRC/stats/wrapper sched_debug
+	$LKP_SRC/stats/wrapper perf-stat
+	$LKP_SRC/stats/wrapper mpstat
+	$LKP_SRC/stats/wrapper perf-profile
+
+	$LKP_SRC/stats/wrapper time aim9.time
+	$LKP_SRC/stats/wrapper dmesg
+	$LKP_SRC/stats/wrapper kmsg
+	$LKP_SRC/stats/wrapper last_state
+	$LKP_SRC/stats/wrapper stderr
+	$LKP_SRC/stats/wrapper time
+}
+
+"$@"
