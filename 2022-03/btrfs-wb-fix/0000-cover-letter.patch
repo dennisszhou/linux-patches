@@ -1,0 +1,24 @@
+From 86e7bb14914a2f7b2d694b416f9205d8b8eb609c Mon Sep 17 00:00:00 2001
+From: Dennis Zhou <dennis@kernel.org>
+Date: Thu, 31 Mar 2022 14:56:46 -0700
+Subject: [PATCH 0/1] btrfs: compressed writeback cgroup attribution
+
+Hello,
+
+I was looking at some blk-cgroup attribution stuff due to an ask
+regarding io_uring and was thinking back to this work. I noticed that
+the cgroup attribution for writeback is gone. Josef or Chris, can you
+comment if this is still desired / the state of REQ_CGROUP_PUNT?
+
+Thanks,
+Dennis
+
+Dennis Zhou (1):
+  btrfs: fix btrfs_submit_compressed_write cgroup attribution
+
+ fs/btrfs/compression.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+-- 
+2.34.1
+

@@ -1,0 +1,53 @@
+From 86e7bb14914a2f7b2d694b416f9205d8b8eb609c Mon Sep 17 00:00:00 2001
+From: Dennis Zhou <dennis@kernel.org>
+Date: Thu, 31 Mar 2022 11:52:02 -0700
+Subject: [PATCH 1/1] btrfs: fix btrfs_submit_compressed_write cgroup
+ attribution
+
+This restores the logic from commit 46bcff2bfc5e
+("btrfs: fix compressed write bio blkcg attribution") which added cgroup
+attribution to btrfs writeback. It also adds back the REQ_CGROUP_PUNT
+flag for these ios.
+
+Fixes: 91507240482e ("btrfs: determine stripe boundary at bio allocation time in btrfs_submit_compressed_write")
+Signed-off-by: Dennis Zhou <dennis@kernel.org>
+---
+ fs/btrfs/compression.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/fs/btrfs/compression.c b/fs/btrfs/compression.c
+index be476f094300..19bf36d8ffea 100644
+--- a/fs/btrfs/compression.c
++++ b/fs/btrfs/compression.c
+@@ -537,6 +537,9 @@ blk_status_t btrfs_submit_compressed_write(struct btrfs_inode *inode, u64 start,
+ 	cb->orig_bio = NULL;
+ 	cb->nr_pages = nr_pages;
+ 
++	if (blkcg_css)
++		kthread_associate_blkcg(blkcg_css);
++
+ 	while (cur_disk_bytenr < disk_start + compressed_len) {
+ 		u64 offset = cur_disk_bytenr - disk_start;
+ 		unsigned int index = offset >> PAGE_SHIFT;
+@@ -555,6 +558,8 @@ blk_status_t btrfs_submit_compressed_write(struct btrfs_inode *inode, u64 start,
+ 				bio = NULL;
+ 				goto finish_cb;
+ 			}
++			if (blkcg_css)
++				bio->bi_opf |= REQ_CGROUP_PUNT;
+ 		}
+ 		/*
+ 		 * We should never reach next_stripe_start start as we will
+@@ -612,6 +617,9 @@ blk_status_t btrfs_submit_compressed_write(struct btrfs_inode *inode, u64 start,
+ 	return 0;
+ 
+ finish_cb:
++	if (blkcg_css)
++		kthread_associate_blkcg(NULL);
++
+ 	if (bio) {
+ 		bio->bi_status = ret;
+ 		bio_endio(bio);
+-- 
+2.34.1
+
