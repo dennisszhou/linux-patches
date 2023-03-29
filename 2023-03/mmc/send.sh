@@ -1,0 +1,1 @@
+git send-email --to "Greg Kroah-Hartman <gregkh@linuxfoundation.org>" --to "Rafael J. Wysocki <rafael@kernel.org>" --to "Ulf Hansson <ulf.hansson@linaro.org>" --cc "linux-mmc@vger.kernel.org" --cc "linux-kernel@vger.kernel.org" 000*
