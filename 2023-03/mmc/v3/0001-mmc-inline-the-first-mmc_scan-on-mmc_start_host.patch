@@ -1,0 +1,63 @@
+From 28e983ac096d7c72197eddc3161ad9ae1ae81947 Mon Sep 17 00:00:00 2001
+From: Dennis Zhou <dennis@kernel.org>
+Date: Tue, 28 Mar 2023 23:24:50 -0700
+Subject: [PATCH v2] mmc: inline the first mmc_scan() on mmc_start_host()
+
+When using dm-verity with a data partition on an emmc device, dm-verity
+races with the discovery of attached emmc devices. This is because mmc's
+probing code sets up the host data structure then a work item is
+scheduled to do discovery afterwards. To prevent this race on init,
+let's inline the first call to detection, __mm_scan(), and let
+subsequent detect calls be handled via the workqueue.
+
+Signed-off-by: Dennis Zhou <dennis@kernel.org>
+---
+Sigh.. fix missing static declaration.
+
+ drivers/mmc/core/core.c | 15 +++++++++++----
+ 1 file changed, 11 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/mmc/core/core.c b/drivers/mmc/core/core.c
+index 368f10405e13..fda7ee57dee3 100644
+--- a/drivers/mmc/core/core.c
++++ b/drivers/mmc/core/core.c
+@@ -2185,10 +2185,8 @@ int mmc_card_alternative_gpt_sector(struct mmc_card *card, sector_t *gpt_sector)
+ }
+ EXPORT_SYMBOL(mmc_card_alternative_gpt_sector);
+ 
+-void mmc_rescan(struct work_struct *work)
++static void __mmc_rescan(struct mmc_host *host)
+ {
+-	struct mmc_host *host =
+-		container_of(work, struct mmc_host, detect.work);
+ 	int i;
+ 
+ 	if (host->rescan_disable)
+@@ -2249,6 +2247,14 @@ void mmc_rescan(struct work_struct *work)
+ 		mmc_schedule_delayed_work(&host->detect, HZ);
+ }
+ 
++void mmc_rescan(struct work_struct *work)
++{
++	struct mmc_host *host =
++		container_of(work, struct mmc_host, detect.work);
++
++	__mmc_rescan(host);
++}
++
+ void mmc_start_host(struct mmc_host *host)
+ {
+ 	host->f_init = max(min(freqs[0], host->f_max), host->f_min);
+@@ -2261,7 +2267,8 @@ void mmc_start_host(struct mmc_host *host)
+ 	}
+ 
+ 	mmc_gpiod_request_cd_irq(host);
+-	_mmc_detect_change(host, 0, false);
++	host->detect_change = 1;
++	__mmc_rescan(host);
+ }
+ 
+ void __mmc_stop_host(struct mmc_host *host)
+-- 
+2.40.0
+
